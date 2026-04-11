@@ -221,6 +221,7 @@ void fillPolygon(const std::vector<Point> &pts, LGFX_Sprite &eyeSpr, uint16_t co
     }
 }
 
+/*
 void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, uint16_t screen_x, uint16_t screen_y)
 {
     eyeSpr.fillSprite(pupilGradient[3]);
@@ -241,14 +242,106 @@ void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, uint16_t screen_x, uint16_t scree
 
     eyeSpr.pushSprite(screen_x, screen_y);
 }
+*/
+
+void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache& cache, uint16_t screen_x, uint16_t screen_y)
+{
+    eyeSpr.fillSprite(pupilGradient[3]);
+    maskSprite.fillSprite(TFT_BLACK);
+
+    updateShapeCache(cache, e);
+
+    int16_t gX = round(e.gaze.x * MAX_X);
+    int16_t gY = round(e.gaze.y * MAX_Y);
+
+    fillPolygon(cache.pts, maskSprite, TFT_WHITE);
+
+    radialGradient.pushSprite(&eyeSpr, gX, gY);
+    maskSprite.pushSprite(&eyeSpr, 0, 0, TFT_WHITE);
+
+    eyeSpr.pushSprite(screen_x, screen_y);
+}
+
+void drawEyeClipped(LGFX_Sprite &eyeSpr, EyeState &e, uint16_t screen_x, uint16_t screen_y) // not working jet
+{
+    eyeSpr.fillSprite(TFT_BLACK);
+
+    int16_t gX = round(e.gaze.x * MAX_X);
+    int16_t gY = round(e.gaze.y * MAX_Y);
+    
+    int16_t x = e.pos.x * MAX_W * 0.25;
+    int16_t y = e.pos.y * MAX_H * 0.25;
+
+    buildShape(baseShape, 4, bezierRes, pts);
+    normalizeToScreen(pts, e.size.x * MAX_W, e.size.y * MAX_H, x, y); // eyeL pos
+
+    int minY = 9999, maxY = -9999;
+
+    auto* buf = (uint16_t*)radialGradient.getBuffer();
+    int w = radialGradient.width();
+
+    for(const auto& p : pts)
+    {
+        minY = min(minY, (int)p.y);
+        maxY = max(maxY, (int)p.y);
+    }
+
+    for(int y = minY; y <= maxY; y++)
+    {
+        std::vector<int> nodes;
+
+        int j = pts.size() - 1;
+
+        for(int i = 0; i < pts.size(); i++)
+        {
+            if ((pts[i].y < y && pts[j].y >= y) ||
+                (pts[j].y < y && pts[i].y >= y))
+            {
+                int x = pts[i].x + (y - pts[i].y) *
+                        (pts[j].x - pts[i].x) /
+                        (pts[j].y - pts[i].y);
+
+                nodes.push_back(x);
+            }
+            j = i;
+        }
+
+        std::sort(nodes.begin(), nodes.end());
+
+        for(int k = 0; k < nodes.size(); k += 2)
+        {
+            if(k+1 < nodes.size())
+            {
+                int x0 = nodes[k];
+                int x1 = nodes[k+1];
+
+                for(int x = x0; x < x1; x++)
+                {
+                    // Sample aus Gradient
+                    //uint16_t color = radialGradient.readPixel(x + gX, y + gY);
+
+                    uint16_t color = buf[(y+gY)*w + (x+gX)];
+
+                    eyeSpr.drawPixel(x, y, color);
+                }
+            }
+        }
+    }
+    eyeSpr.pushSprite(screen_x, screen_y);
+}
 
 void drawFace(EyePair &pair, EyeState &eL, EyeState &eR, int screen_x, int screen_y)
 {
     int16_t x = screen_x + eL.gaze.x * MAX_X;
     int16_t y = screen_y + eR.gaze.y * MAX_Y;
 
-    drawEye(eyeLSprite, eL, x, y);
-    drawEye(eyeRSprite, eR, x + MAX_W, y);
+    //drawEyeClipped(eyeLSprite, eL, x, y);
+    //drawEyeClipped(eyeRSprite, eR, x + MAX_W, y);
+    //drawEye(eyeLSprite, eL, x, y);
+    //drawEye(eyeRSprite, eR, x + MAX_W, y);
+    
+    drawEye(eyeLSprite, eL, cacheL, x, y);
+    drawEye(eyeRSprite, eR, cacheR, x + MAX_W, y);
     ledcWrite(PWM_CHANNEL, pair.current.brightnes);
 }
 
@@ -353,6 +446,38 @@ void blink(EyeState &eye, EyeState &target, unsigned long time)
     if (currentMillis - animMillis >= time)
     {
         target.size = sizebefore;
+    }
+}
+
+bool hasChanged(const Point& a, const Point& b, float eps)
+{
+    return (abs(a.x - b.x) > eps) || (abs(a.y - b.y) > eps);
+}
+
+void updateShapeCache(EyeRenderCache& cache, EyeState& e)
+{
+    if (hasChanged(e.size, cache.lastSize) ||
+        hasChanged(e.pos, cache.lastPos) ||
+        cache.dirty)
+    {
+        cache.pts.clear();
+
+        buildShape(baseShape, 4, bezierRes, cache.pts);
+
+        int16_t x = e.pos.x * MAX_W * 0.25f;
+        int16_t y = e.pos.y * MAX_H * 0.25f;
+
+        normalizeToScreen(
+            cache.pts,
+            e.size.x * MAX_W,
+            e.size.y * MAX_H,
+            x,
+            y
+        );
+
+        cache.lastSize = e.size;
+        cache.lastPos  = e.pos;
+        cache.dirty = false;
     }
 }
 
