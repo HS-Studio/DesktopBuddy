@@ -254,9 +254,12 @@ void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache& cache, uint16_t s
     int16_t gX = round(e.gaze.x * MAX_X);
     int16_t gY = round(e.gaze.y * MAX_Y);
 
+    int16_t x = e.pos.x * (MAX_W * 0.25);
+    int16_t y = e.pos.y * (MAX_H * 0.25);
+
     fillPolygon(cache.pts, maskSprite, TFT_WHITE);
 
-    radialGradient.pushSprite(&eyeSpr, gX, gY);
+    radialGradient.pushSprite(&eyeSpr, gX + x, gY + y); // pupill
     maskSprite.pushSprite(&eyeSpr, 0, 0, TFT_WHITE);
 
     eyeSpr.pushSprite(screen_x, screen_y);
