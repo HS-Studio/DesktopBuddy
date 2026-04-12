@@ -60,9 +60,22 @@ struct BezierLine
     Point c2;
 };
 
+struct Edge
+{
+    int yMax;
+    float x;
+    float invSlope;
+};
+
 struct EyeRenderCache
 {
     std::vector<Point> pts;
+
+    std::vector<std::vector<Edge>> ET;
+    std::vector<Edge> AET;
+
+    int minY, maxY;
+
     Point lastSize;
     Point lastPos;
     bool dirty = true;
@@ -186,6 +199,8 @@ void sampleBezier(const BezierLine &b, std::vector<Point> &pts, uint8_t steps);
 void buildShape(BezierLine *shape, int count, int steps, std::vector<Point> &pts);
 void normalizeToScreen(std::vector<Point> &pts, uint16_t w, uint16_t h, int16_t ox, int16_t oy);
 void fillPolygon(const std::vector<Point>& pts, LGFX_Sprite& eyeSpr, uint16_t color);
+
+// Draw Funktions
 //void drawEye(LGFX_Sprite& eyeSpr, EyeState& e, uint16_t screen_x, uint16_t screen_y);
 void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache& cache, uint16_t screen_x, uint16_t screen_y);
 void drawEyeClipped(LGFX_Sprite &eyeSpr, EyeState &e, uint16_t screen_x, uint16_t screen_y);
@@ -199,10 +214,13 @@ lgfx::rgb888_t lerpColor(const lgfx::rgb888_t& a, const lgfx::rgb888_t& b, float
 void buildGradient(lgfx::rgb888_t* grad, const lgfx::rgb888_t targetColor);
 bool updateColor(lgfx::rgb888_t& currentColor, lgfx::rgb888_t targetColor, float speed = 0.1f);
 void updateEyeState(EyeState& eye, EyeState& target, float speed = 0.1f);
-void blink(EyeState& eye, EyeState& target, unsigned long time = 200);
 
 bool hasChanged(const Point& a, const Point& b, float eps = 0.001f);
 void updateShapeCache(EyeRenderCache& cache, EyeState& e);
+void buildEdgeTable(EyeRenderCache& cache);
+void fillPolygonET(EyeRenderCache& cache, LGFX_Sprite& spr, uint16_t color);
+
+void blink(EyeState& eye, EyeState& target, unsigned long time = 200);
 
 // FPS stuff
 bool showFps = true;

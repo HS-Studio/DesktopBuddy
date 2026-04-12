@@ -250,6 +250,7 @@ void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache& cache, uint16_t s
     maskSprite.fillSprite(TFT_BLACK);
 
     updateShapeCache(cache, e);
+    
 
     int16_t gX = round(e.gaze.x * MAX_X);
     int16_t gY = round(e.gaze.y * MAX_Y);
@@ -257,7 +258,8 @@ void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache& cache, uint16_t s
     int16_t x = e.pos.x * (MAX_W * 0.25);
     int16_t y = e.pos.y * (MAX_H * 0.25);
 
-    fillPolygon(cache.pts, maskSprite, TFT_WHITE);
+    fillPolygonET(cache, maskSprite, TFT_WHITE);
+    //fillPolygon(cache.pts, maskSprite, TFT_WHITE);
 
     radialGradient.pushSprite(&eyeSpr, gX + x, gY + y); // pupill
     maskSprite.pushSprite(&eyeSpr, 0, 0, TFT_WHITE);
@@ -431,25 +433,6 @@ void updateEyeState(EyeState &eye, EyeState &target, float speed)
         radialGradient.fillSprite(pupilGradient[3]);
         radialGradient.fillGradientRect(0, 0, MAX_W, MAX_H, pupilColors);
     }
-
-    
-}
-
-void blink(EyeState &eye, EyeState &target, unsigned long time)
-{
-    currentMillis = millis();
-
-    if (currentMillis - animMillis >= random(4000, 8000))
-    {
-        sizebefore = target.size;
-        target.size.y = 0.02;
-        target.size.x = target.size.x * 1.25;
-        animMillis = currentMillis;
-    }
-    if (currentMillis - animMillis >= time)
-    {
-        target.size = sizebefore;
-    }
 }
 
 bool hasChanged(const Point& a, const Point& b, float eps)
@@ -463,6 +446,7 @@ void updateShapeCache(EyeRenderCache& cache, EyeState& e)
         hasChanged(e.pos, cache.lastPos) ||
         cache.dirty)
     {
+        buildEdgeTable(cache);
         cache.pts.clear();
 
         buildShape(baseShape, 4, bezierRes, cache.pts);
@@ -481,6 +465,93 @@ void updateShapeCache(EyeRenderCache& cache, EyeState& e)
         cache.lastSize = e.size;
         cache.lastPos  = e.pos;
         cache.dirty = false;
+    }
+}
+
+void buildEdgeTable(EyeRenderCache& cache)
+{
+    cache.ET.clear();
+    cache.ET.resize(MAX_H); // oder dynamisch minY/maxY
+
+    cache.minY = 9999;
+    cache.maxY = -9999;
+
+    int n = cache.pts.size();
+
+    for(int i = 0; i < n; i++)
+    {
+        Point p1 = cache.pts[i];
+        Point p2 = cache.pts[(i + 1) % n];
+
+        if(p1.y == p2.y) continue; // horizontale ignorieren
+
+        if(p1.y > p2.y) std::swap(p1, p2);
+
+        int yMin = (int)p1.y;
+        int yMax = (int)p2.y;
+
+        Edge e;
+        e.yMax = yMax;
+        e.x = p1.x;
+        e.invSlope = (p2.x - p1.x) / (p2.y - p1.y);
+
+        cache.ET[yMin].push_back(e);
+
+        cache.minY = min(cache.minY, yMin);
+        cache.maxY = max(cache.maxY, yMax);
+    }
+}
+
+void fillPolygonET(EyeRenderCache& cache, LGFX_Sprite& spr, uint16_t color)
+{
+    cache.AET.clear();
+
+    for(int y = cache.minY; y < cache.maxY; y++)
+    {
+        // neue Kanten aktivieren
+        for(auto& e : cache.ET[y])
+            cache.AET.push_back(e);
+
+        // alte entfernen
+        cache.AET.erase(
+            std::remove_if(cache.AET.begin(), cache.AET.end(),
+                [y](const Edge& e){ return y >= e.yMax; }),
+            cache.AET.end()
+        );
+
+        // sortieren
+        std::sort(cache.AET.begin(), cache.AET.end(),
+            [](const Edge& a, const Edge& b){ return a.x < b.x; });
+
+        // zeichnen
+        for(int i = 0; i < cache.AET.size(); i += 2)
+        {
+            int x0 = (int)cache.AET[i].x;
+            int x1 = (int)cache.AET[i+1].x;
+
+            spr.drawFastHLine(x0, y, x1 - x0, color);
+        }
+
+        // x updaten
+        for(auto& e : cache.AET)
+            e.x += e.invSlope;
+    }
+}
+
+void blink(EyeState &eye, EyeState &target, unsigned long time)
+{
+    currentMillis = millis();
+
+    if (currentMillis - animMillis >= random(4000, 8000))
+    {
+        sizebefore = target.size;
+        target.size.y = 0.02;
+        target.size.x = target.size.x * 1.25;
+        animMillis = currentMillis;
+    }
+    if (currentMillis - animMillis >= time)
+    {
+        target.size = sizebefore;
     }
 }
 
