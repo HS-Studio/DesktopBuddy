@@ -46,6 +46,7 @@ void setup()
     eyePair.current = start_state;
     eyePair.target = default_state;
 
+    blinkbefore = eyePair.target.blink;
     sizebefore = eyePair.target.size;
 
     eyePair.convergence = 0.5f;
@@ -79,8 +80,10 @@ void loop()
     eyePair.target.gaze.x = joy.x; // Später automatisch / random / Emotion
     eyePair.target.gaze.y = joy.y;
 
+    blink(eyePair.current, eyePair.target, 0.95f);
+
     // smooth interpolation
-    updateEyeState(eyePair.current, eyePair.target, 0.15f);
+    updateEyeState(eyePair.current, eyePair.target, 0.2f);
 
     // Augen ableiten
     eyeL = eyePair.current;
@@ -98,8 +101,6 @@ void loop()
     eyePair.target.gaze.y += sin(millis() * 0.004f) * 0.19f;
 
     drawFace(eyePair, eyeL, eyeR, 20, 80);
-
-    blink(eyePair.current, eyePair.target);
 
     //eyePair.current.brightnes = eyePair.current.size.y*255;
 
@@ -122,7 +123,8 @@ void loop()
         buttonUp = true;
     }
 
-    Serial.printf(">joy.x: %f\n>joy.y: %f\n", joy.x, joy.y);
+    //Serial.printf(">joy.x: %f\n>joy.y: %f\n", joy.x, joy.y);
+    //Serial.printf(">blink: %f\n", eyePair.current.blink);
 
     if (showFps)
         drawFPS();
@@ -262,8 +264,9 @@ void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache& cache, uint16_t s
 
     radialGradient.pushSprite(&eyeSpr, gX + x, gY + y); // pupill
     maskSprite.pushSprite(&eyeSpr, 0, 0, TFT_WHITE);
-/* 
-    int n = cache.pts.size(); visualize points
+    
+/*  //visualize points
+    int n = cache.pts.size(); 
 
     for(int i = 0; i < n; i++)
     {
@@ -271,74 +274,6 @@ void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache& cache, uint16_t s
         eyeSpr.drawRect(p.x, p.y, 2, 2, TFT_WHITE);
     }
  */
-    eyeSpr.pushSprite(screen_x, screen_y);
-}
-
-void drawEyeClipped(LGFX_Sprite &eyeSpr, EyeState &e, uint16_t screen_x, uint16_t screen_y) // not working jet
-{
-    eyeSpr.fillSprite(TFT_BLACK);
-
-    int16_t gX = round(e.gaze.x * MAX_X);
-    int16_t gY = round(e.gaze.y * MAX_Y);
-    
-    int16_t x = e.pos.x * MAX_W * 0.25;
-    int16_t y = e.pos.y * MAX_H * 0.25;
-
-    buildShape(baseShape, 4, bezierRes, pts);
-    normalizeToScreen(pts, e.size.x * MAX_W, e.size.y * MAX_H, x, y); // eyeL pos
-
-    int minY = 9999, maxY = -9999;
-
-    auto* buf = (uint16_t*)radialGradient.getBuffer();
-    int w = radialGradient.width();
-
-    for(const auto& p : pts)
-    {
-        minY = min(minY, (int)p.y);
-        maxY = max(maxY, (int)p.y);
-    }
-
-    for(int y = minY; y <= maxY; y++)
-    {
-        std::vector<int> nodes;
-
-        int j = pts.size() - 1;
-
-        for(int i = 0; i < pts.size(); i++)
-        {
-            if ((pts[i].y < y && pts[j].y >= y) ||
-                (pts[j].y < y && pts[i].y >= y))
-            {
-                int x = pts[i].x + (y - pts[i].y) *
-                        (pts[j].x - pts[i].x) /
-                        (pts[j].y - pts[i].y);
-
-                nodes.push_back(x);
-            }
-            j = i;
-        }
-
-        std::sort(nodes.begin(), nodes.end());
-
-        for(int k = 0; k < nodes.size(); k += 2)
-        {
-            if(k+1 < nodes.size())
-            {
-                int x0 = nodes[k];
-                int x1 = nodes[k+1];
-
-                for(int x = x0; x < x1; x++)
-                {
-                    // Sample aus Gradient
-                    //uint16_t color = radialGradient.readPixel(x + gX, y + gY);
-
-                    uint16_t color = buf[(y+gY)*w + (x+gX)];
-
-                    eyeSpr.drawPixel(x, y, color);
-                }
-            }
-        }
-    }
     eyeSpr.pushSprite(screen_x, screen_y);
 }
 
@@ -449,14 +384,17 @@ bool hasChanged(const Point& a, const Point& b, float eps)
 
 void updateShapeCache(EyeRenderCache& cache, EyeState& e)
 {
-    if (hasChanged(e.size, cache.lastSize) ||
-        hasChanged(e.pos, cache.lastPos) ||
+    if (hasChanged(e.size, cache.lastState.size) ||
+        hasChanged(e.pos, cache.lastState.pos) ||
+        abs(e.blink - cache.lastState.blink) > 0.001f ||
         cache.dirty)
     {
         cache.pts.clear();
 
         // Shape bauen
         buildShape(baseShape, 4, bezierRes, cache.pts);
+        
+        applyLids(cache.pts, e);
 
         int16_t x = e.pos.x * MAX_W * 0.25f;
         int16_t y = e.pos.y * MAX_H * 0.25f;
@@ -473,8 +411,9 @@ void updateShapeCache(EyeRenderCache& cache, EyeState& e)
         // Edge Table bauen
         buildEdgeTable(cache);
 
-        cache.lastSize = e.size;
-        cache.lastPos  = e.pos;
+        cache.lastState.size = e.size;
+        cache.lastState.pos  = e.pos;
+        cache.lastState.blink = e.blink;
         cache.dirty = false;
     }
 }
@@ -557,19 +496,40 @@ void fillPolygonET(EyeRenderCache& cache, LGFX_Sprite& spr, uint16_t color)
     }
 }
 
-void blink(EyeState &eye, EyeState &target, unsigned long time)
+void applyLids(std::vector<Point>& pts, const EyeState& e)
+{
+    float blink = e.blink;
+
+    float upperLimit = 1.0f - (blink * 0.25f);
+    float lowerLimit = (blink * 0.75f);
+
+    for(auto& p : pts)
+    {
+        float t = (p.y - lowerLimit) / (upperLimit - lowerLimit);
+        t = constrain(t, 0.0f, 1.0f);
+        p.y = lowerLimit + t * (upperLimit - lowerLimit);
+
+        if(p.y > upperLimit) p.y = upperLimit;
+        if(p.y < lowerLimit) p.y = lowerLimit;
+    }
+}
+
+void blink(EyeState &e, EyeState &target, float blink)
 {
     currentMillis = millis();
 
     if (currentMillis - animMillis >= random(4000, 8000))
     {
+        blinkbefore = target.blink;
         sizebefore = target.size;
-        target.size.y = 0.02;
+        target.blink = blink;
+        //target.size.y = 0.02;
         target.size.x = target.size.x * 1.25;
         animMillis = currentMillis;
     }
-    if (currentMillis - animMillis >= time)
+    if (blink - e.blink < 0.15)
     {
+        target.blink = blinkbefore;
         target.size = sizebefore;
     }
 }

@@ -76,8 +76,8 @@ struct EyeRenderCache
 
     int minY, maxY;
 
-    Point lastSize;
-    Point lastPos;
+    EyeState lastState;
+
     bool dirty = true;
 };
 
@@ -187,6 +187,7 @@ int bezierRes = 5;
 
 Point joy = {0,0}; // to store the X-axis value
 
+float blinkbefore;
 Point sizebefore;
 unsigned long animMillis = 0;
 
@@ -203,7 +204,6 @@ void fillPolygon(const std::vector<Point>& pts, LGFX_Sprite& eyeSpr, uint16_t co
 // Draw Funktions
 //void drawEye(LGFX_Sprite& eyeSpr, EyeState& e, uint16_t screen_x, uint16_t screen_y);
 void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache& cache, uint16_t screen_x, uint16_t screen_y);
-void drawEyeClipped(LGFX_Sprite &eyeSpr, EyeState &e, uint16_t screen_x, uint16_t screen_y);
 void drawFace(EyePair& pair, EyeState& eL, EyeState& eR, int screen_x, int screen_y); // X ↕ Y ↔
 
 float lerp(float a, float b, float t = 0.1);
@@ -220,7 +220,9 @@ void updateShapeCache(EyeRenderCache& cache, EyeState& e);
 void buildEdgeTable(EyeRenderCache& cache);
 void fillPolygonET(EyeRenderCache& cache, LGFX_Sprite& spr, uint16_t color);
 
-void blink(EyeState& eye, EyeState& target, unsigned long time = 200);
+void applyLids(std::vector<Point>& pts, const EyeState& e);
+
+void blink(EyeState &e, EyeState &target, float blink);
 
 // FPS stuff
 bool showFps = true;
