@@ -183,7 +183,7 @@ lgfx::colors_t pupilColors =
     4
 };
 
-int bezierRes = 6;
+int bezierRes = 5;
 
 Point joy = {0,0}; // to store the X-axis value
 

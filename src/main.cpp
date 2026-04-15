@@ -251,7 +251,6 @@ void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache& cache, uint16_t s
 
     updateShapeCache(cache, e);
     
-
     int16_t gX = round(e.gaze.x * MAX_X);
     int16_t gY = round(e.gaze.y * MAX_Y);
 
@@ -263,7 +262,15 @@ void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache& cache, uint16_t s
 
     radialGradient.pushSprite(&eyeSpr, gX + x, gY + y); // pupill
     maskSprite.pushSprite(&eyeSpr, 0, 0, TFT_WHITE);
+/* 
+    int n = cache.pts.size(); visualize points
 
+    for(int i = 0; i < n; i++)
+    {
+        Point p = cache.pts[i];
+        eyeSpr.drawRect(p.x, p.y, 2, 2, TFT_WHITE);
+    }
+ */
     eyeSpr.pushSprite(screen_x, screen_y);
 }
 
@@ -446,14 +453,15 @@ void updateShapeCache(EyeRenderCache& cache, EyeState& e)
         hasChanged(e.pos, cache.lastPos) ||
         cache.dirty)
     {
-        buildEdgeTable(cache);
         cache.pts.clear();
 
+        // Shape bauen
         buildShape(baseShape, 4, bezierRes, cache.pts);
 
         int16_t x = e.pos.x * MAX_W * 0.25f;
         int16_t y = e.pos.y * MAX_H * 0.25f;
 
+        // Transformieren
         normalizeToScreen(
             cache.pts,
             e.size.x * MAX_W,
@@ -461,6 +469,9 @@ void updateShapeCache(EyeRenderCache& cache, EyeState& e)
             x,
             y
         );
+
+        // Edge Table bauen
+        buildEdgeTable(cache);
 
         cache.lastSize = e.size;
         cache.lastPos  = e.pos;
@@ -471,10 +482,10 @@ void updateShapeCache(EyeRenderCache& cache, EyeState& e)
 void buildEdgeTable(EyeRenderCache& cache)
 {
     cache.ET.clear();
-    cache.ET.resize(MAX_H); // oder dynamisch minY/maxY
+    cache.ET.resize(MAX_H);
 
-    cache.minY = 9999;
-    cache.maxY = -9999;
+    cache.minY = MAX_H;
+    cache.maxY = 0;
 
     int n = cache.pts.size();
 
@@ -483,19 +494,26 @@ void buildEdgeTable(EyeRenderCache& cache)
         Point p1 = cache.pts[i];
         Point p2 = cache.pts[(i + 1) % n];
 
-        if(p1.y == p2.y) continue; // horizontale ignorieren
+        if ((int)p1.y == (int)p2.y) continue; // horizontale ignorieren
 
         if(p1.y > p2.y) std::swap(p1, p2);
 
         int yMin = (int)p1.y;
         int yMax = (int)p2.y;
 
+        //int yMin = (int)round(p1.y); // langsamer aber genauer
+        //int yMax = (int)round(p2.y);
+
+        if (yMin < 0) yMin = 0;
+        if (yMax >= MAX_H) yMax = MAX_H - 1;
+
         Edge e;
         e.yMax = yMax;
         e.x = p1.x;
         e.invSlope = (p2.x - p1.x) / (p2.y - p1.y);
 
-        cache.ET[yMin].push_back(e);
+        if (yMin >= 0 && yMin < MAX_H)
+            cache.ET[yMin].push_back(e);
 
         cache.minY = min(cache.minY, yMin);
         cache.maxY = max(cache.maxY, yMax);
@@ -508,11 +526,11 @@ void fillPolygonET(EyeRenderCache& cache, LGFX_Sprite& spr, uint16_t color)
 
     for(int y = cache.minY; y < cache.maxY; y++)
     {
-        // neue Kanten aktivieren
+        // hinzufügen
         for(auto& e : cache.ET[y])
             cache.AET.push_back(e);
 
-        // alte entfernen
+        // entfernen
         cache.AET.erase(
             std::remove_if(cache.AET.begin(), cache.AET.end(),
                 [y](const Edge& e){ return y >= e.yMax; }),
@@ -524,15 +542,16 @@ void fillPolygonET(EyeRenderCache& cache, LGFX_Sprite& spr, uint16_t color)
             [](const Edge& a, const Edge& b){ return a.x < b.x; });
 
         // zeichnen
-        for(int i = 0; i < cache.AET.size(); i += 2)
+        for(int i = 0; i + 1 < cache.AET.size(); i += 2)
         {
             int x0 = (int)cache.AET[i].x;
             int x1 = (int)cache.AET[i+1].x;
 
-            spr.drawFastHLine(x0, y, x1 - x0, color);
+            if (x1 > x0)
+                spr.drawFastHLine(x0, y, x1 - x0, color);
         }
 
-        // x updaten
+        // update
         for(auto& e : cache.AET)
             e.x += e.invSlope;
     }
