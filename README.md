@@ -3,8 +3,6 @@
 Animierte „Cozmo“-Augen auf einem TFT-Display, gesteuert von einem ESP32.  
 Fokus liegt auf flüssiger Darstellung, natürlicher Bewegung und effizientem Rendering.
 
----
-
 ## Features
 
 - Flüssige Animation (~60 FPS)
@@ -12,16 +10,12 @@ Fokus liegt auf flüssiger Darstellung, natürlicher Bewegung und effizientem Re
 - Zwei unabhängige Augen
 - Nutzung von LovyanGFX Sprites (kein Flickering)
 
----
-
 ## Software
 
 - Visual Studio Code
 - PlatformIO Extension
 - Arduino Framework
 - LovyanGFX Library
-
----
 
 ## Setup
 
@@ -34,14 +28,13 @@ Fokus liegt auf flüssiger Darstellung, natürlicher Bewegung und effizientem Re
     `pio run -t upload`
     oder mit VSCode hochladen.
 
+---
 <br/><br/>
 
 # Cozmo Eyes Animation
 
 Animated "Cozmo" eyes on a TFT display, controlled by an ESP32.  
 Focus is on smooth rendering, natural movement, and efficient rendering.
-
----
 
 ## Features
 
@@ -50,16 +43,12 @@ Focus is on smooth rendering, natural movement, and efficient rendering.
 - Two independent eyes
 - Use of LovyanGFX sprites (no flickering)
 
----
-
 ## Software
 
 - Visual Studio Code
 - PlatformIO Extension
 - Arduino Framework
 - LovyanGFX Library
-
----
 
 ## Setup
 
