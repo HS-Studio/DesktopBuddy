@@ -1,4 +1,4 @@
-## Cozmo Eyes Animation
+## Cozmo Eyes Animation - (WIP)
 
 Animierte „Cozmo“-Augen auf einem TFT-Display, gesteuert von einem ESP32.  
 Fokus liegt auf flüssiger Darstellung, natürlicher Bewegung und effizientem Rendering.
@@ -31,7 +31,7 @@ Fokus liegt auf flüssiger Darstellung, natürlicher Bewegung und effizientem Re
 ---
 <br/><br/>
 
-# Cozmo Eyes Animation
+# Cozmo Eyes Animation - (WIP)
 
 Animated "Cozmo" eyes on a TFT display, controlled by an ESP32.  
 Focus is on smooth rendering, natural movement, and efficient rendering.
