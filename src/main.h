@@ -48,6 +48,7 @@ struct EyeState
     float lowerLid;
     float angry;
     float happy;
+    bool mirror;
     lgfx::rgb888_t color;
     uint8_t brightnes;
 };
@@ -208,12 +209,14 @@ static BezierLine happyShape[4] =
         },
 };
 
+BezierLine deltaBlink[4];
+BezierLine deltaAngry[4];
+BezierLine deltaHappy[4];
+
 bool buttonUp = false;
 
 EyeRenderCache cacheL;
 EyeRenderCache cacheR;
-
-BezierLine shape[4];
 
 EyeState default_state =
     {
@@ -227,6 +230,7 @@ EyeState default_state =
         0.0f,           //  lowerLid    0..1
         0.0f,           //  agry
         0.0f,           //  happy
+        false,
         {0, 255, 0},    //  color
         255};
 
@@ -242,6 +246,7 @@ EyeState start_state =
         0.0f,         //  lowerLid    0..1
         0.0f,         //  agry
         0.0f,         //  happy
+        false,
         {255, 0, 0},  //  color
         0};
 
@@ -249,8 +254,6 @@ EyePair eyePair;
 
 EyeState eyeL;
 EyeState eyeR;
-
-std::vector<Point> pts;
 
 lgfx::rgb888_t pupilGradient[] =
     {
@@ -270,7 +273,6 @@ int bezierRes = 5;
 Point joy = {0, 0}; // to store the X-axis value
 
 float blinkbefore;
-Point scalebefore;
 unsigned long animMillis = 0;
 
 const int PWM_CHANNEL = 0;
@@ -280,7 +282,6 @@ const int PWM_RESOLUTION = 8; // 0-255
 // Vector Eye
 void sampleBezier(const BezierLine &b, std::vector<Point> &pts, uint8_t steps);
 void buildShape(BezierLine *shape, int count, int steps, std::vector<Point> &pts);
-void fillPolygon(const std::vector<Point> &pts, LGFX_Sprite &eyeSpr, uint16_t color);
 
 // Draw Funktions
 // void drawEye(LGFX_Sprite& eyeSpr, EyeState& e, uint16_t screen_x, uint16_t screen_y);
@@ -303,11 +304,13 @@ void updateShapeCache(EyeRenderCache &cache, EyeState &e, bool mirror = false);
 void buildEdgeTable(EyeRenderCache &cache);
 void fillPolygonET(EyeRenderCache &cache, LGFX_Sprite &spr, uint16_t color);
 
-void deformShape(BezierLine *shape, const EyeState &e, bool mirror = false);
-void morphShape(BezierLine *out, const BezierLine *base, const BezierLine *target, float t = 0.1f);
-
 void transformShape(BezierLine* shape, const EyeState& e, bool mirror = false);
 void toScreenSpace(std::vector<Point>& pts, const EyeState& e);
+
+void computeDelta(BezierLine* delta, const BezierLine* base, const BezierLine* target);
+void copyShape(BezierLine* dst, const BezierLine* src);
+void applyEmotion(BezierLine* shape, const BezierLine* delta, float t);
+void buildFinalShape(BezierLine* out, const EyeState& e);
 
 void blink(EyeState &e, EyeState &target, float blink);
 

@@ -47,9 +47,12 @@ void setup()
     eyePair.target = default_state;
 
     blinkbefore = eyePair.target.blink;
-    scalebefore = eyePair.target.scale;
 
     eyePair.convergence = 0.5f;
+
+    computeDelta(deltaAngry, baseShape, angryShape);
+    computeDelta(deltaHappy, baseShape, happyShape);
+    computeDelta(deltaBlink, baseShape, blinkShape);
 
     // PWM konfigurieren
     ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
@@ -154,77 +157,6 @@ void buildShape(BezierLine *shape, int count, int steps, std::vector<Point> &pts
         sampleBezier(shape[i], pts, steps);
     }
 }
-
-void fillPolygon(const std::vector<Point> &pts, LGFX_Sprite &eyeSpr, uint16_t color)
-{
-    int minY = 9999, maxY = -9999;
-
-    for (const auto &p : pts)
-    {
-        if (p.y < minY)
-            minY = p.y;
-        if (p.y > maxY)
-            maxY = p.y;
-    }
-
-    for (int y = minY; y <= maxY; y++)
-    {
-        std::vector<int> nodes;
-
-        int j = pts.size() - 1;
-
-        for (int i = 0; i < pts.size(); i++)
-        {
-            if ((pts[i].y < y && pts[j].y >= y) ||
-                (pts[j].y < y && pts[i].y >= y))
-            {
-                int x = pts[i].x + (y - pts[i].y) *
-                                       (pts[j].x - pts[i].x) /
-                                       (pts[j].y - pts[i].y);
-
-                nodes.push_back(x);
-            }
-            j = i;
-        }
-
-        std::sort(nodes.begin(), nodes.end());
-
-        for (int k = 0; k < nodes.size(); k += 2)
-        {
-            if (k + 1 < nodes.size())
-            {
-                eyeSpr.drawFastHLine(
-                    nodes[k],
-                    y,
-                    nodes[k + 1] - nodes[k],
-                    color);
-            }
-        }
-    }
-}
-
-/*
-void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, uint16_t screen_x, uint16_t screen_y)
-{
-    eyeSpr.fillSprite(pupilGradient[3]);
-    maskSprite.fillSprite(TFT_BLACK);
-
-    int16_t gX = round(e.gaze.x * MAX_X);
-    int16_t gY = round(e.gaze.y * MAX_Y);
-
-    int16_t x = e.pos.x * MAX_W * 0.25;
-    int16_t y = e.pos.y * MAX_H * 0.25;
-
-    buildShape(baseShape, 4, bezierRes, pts);
-    normalizeToScreen(pts, e.scale.x * MAX_W, e.scale.y * MAX_H, x, y); // eyeL pos
-    fillPolygon(pts, maskSprite, TFT_WHITE);
-
-    radialGradient.pushSprite(&eyeSpr, gX + x, gY + y); // pupill
-    maskSprite.pushSprite(&eyeSpr, 0, 0, TFT_WHITE);
-
-    eyeSpr.pushSprite(screen_x, screen_y);
-}
-*/
 
 void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache, uint16_t screen_x, uint16_t screen_y, bool mirror)
 {
@@ -366,7 +298,7 @@ void updateEyeState(EyeState &eye, EyeState &target, float speed)
     eye.lowerLid = lerp(eye.lowerLid, target.lowerLid, speed);
     eye.angry = lerp(eye.angry, target.angry, speed);
     eye.happy = lerp(eye.happy, target.happy, speed);
-    eye.brightnes = lerp(eye.brightnes, target.brightnes, speed);
+    eye.brightnes = lerp( eye.brightnes, target.brightnes, speed);
 
     if (updateColor(eye.color, target.color, speed))
     {
@@ -388,19 +320,17 @@ void updateShapeCache(EyeRenderCache &cache, EyeState &e, bool mirror)
         abs(e.blink - cache.lastState.blink) > 0.001f ||
         abs(e.angry - cache.lastState.angry) > 0.001f ||
         abs(e.happy - cache.lastState.happy) > 0.001f ||
+        cache.lastState.mirror != mirror ||
         cache.dirty)
     {
         // bezier deform
-        BezierLine tempShape[4];
+        BezierLine finalShape[4];
 
-        morphShape(tempShape, baseShape, angryShape, e.angry);
-        morphShape(tempShape, tempShape, happyShape, e.happy);
-        morphShape(tempShape, tempShape, blinkShape, e.blink);
-
-        transformShape(tempShape, e, mirror);
+        buildFinalShape(finalShape, e);
+        transformShape(finalShape, e, mirror);
 
         // Shape bauen
-        buildShape(tempShape, 4, bezierRes, cache.pts);
+        buildShape(finalShape, 4, bezierRes, cache.pts);
         
         // Screen space
         toScreenSpace(cache.pts, e);
@@ -498,73 +428,6 @@ void fillPolygonET(EyeRenderCache &cache, LGFX_Sprite &spr, uint16_t color)
     }
 }
 
-void deformShape(BezierLine *shape, const EyeState &e, bool mirror)
-{
-    float scaleX = e.scale.x;
-    float scaleY = e.scale.y;
-
-    float posX = e.pos.x;
-    float posY = e.pos.y;
-
-    // Basis-Eckpunkte (0..1)
-    Point topLeft = shape[0].ps;
-    Point topRight = shape[0].pe;
-    Point bottomRight = shape[2].ps;
-    Point bottomLeft = shape[2].pe;
-
-    // SCALE + POSITION (JETZT HIER!)
-    auto transform = [&](Point &p)
-    {
-        // scale
-        p.x *= scaleX * (MAX_W - 2);
-        p.y *= scaleY * (MAX_H - 2);
-
-        // center + offset
-        p.x += (MAX_W / 2 - (scaleX * MAX_W) / 2) + posX * MAX_W * 0.25f;
-        p.y += (MAX_H / 2 - (scaleY * MAX_H) / 2) + posY * MAX_H * 0.25f;
-
-        // Y flip
-        p.y = (MAX_H - 2) - p.y;
-        if (mirror)
-        {
-            p.x = (MAX_W - 2) - p.x;
-        }
-    };
-
-    transform(topLeft);
-    transform(topRight);
-    transform(bottomRight);
-    transform(bottomLeft);
-
-    // Segmente setzen
-    shape[0].ps = topLeft;
-    shape[0].pe = topRight;
-
-    shape[1].ps = topRight;
-    shape[1].pe = bottomRight;
-
-    shape[2].ps = bottomRight;
-    shape[2].pe = bottomLeft;
-
-    shape[3].ps = bottomLeft;
-    shape[3].pe = topLeft;
-
-    // Kontrollpunkte
-    for (int i = 0; i < 4; i++)
-    {
-        transform(shape[i].c1);
-        transform(shape[i].c2);
-    }
-}
-
-void morphShape(BezierLine *out, const BezierLine *base, const BezierLine *target, float t)
-{
-    for (int i = 0; i < 4; i++)
-    {
-        out[i] = lerp(base[i], target[i], t);
-    }
-}
-
 void transformShape(BezierLine* shape, const EyeState& e, bool mirror)
 {
     float sx = e.scale.x;
@@ -614,6 +477,64 @@ void toScreenSpace(std::vector<Point>& pts, const EyeState& e)
         p.x += offsetX - (MAX_W / 2);
         p.y += offsetY - (MAX_H / 2);
     }
+}
+
+void computeDelta(BezierLine* delta, const BezierLine* base, const BezierLine* target)
+{
+    for (int i = 0; i < 4; i++)
+    {
+        delta[i].ps.x = target[i].ps.x - base[i].ps.x;
+        delta[i].ps.y = target[i].ps.y - base[i].ps.y;
+
+        delta[i].pe.x = target[i].pe.x - base[i].pe.x;
+        delta[i].pe.y = target[i].pe.y - base[i].pe.y;
+
+        delta[i].c1.x = target[i].c1.x - base[i].c1.x;
+        delta[i].c1.y = target[i].c1.y - base[i].c1.y;
+
+        delta[i].c2.x = target[i].c2.x - base[i].c2.x;
+        delta[i].c2.y = target[i].c2.y - base[i].c2.y;
+    }
+}
+
+void copyShape(BezierLine* dst, const BezierLine* src)
+{
+    for (int i = 0; i < 4; i++)
+        dst[i] = src[i];
+}
+
+void applyEmotion(BezierLine* shape, const BezierLine* delta, float t)
+{
+    for (int i = 0; i < 4; i++)
+    {
+        shape[i].ps.x += delta[i].ps.x * t;
+        shape[i].ps.y += delta[i].ps.y * t;
+
+        shape[i].pe.x += delta[i].pe.x * t;
+        shape[i].pe.y += delta[i].pe.y * t;
+
+        shape[i].c1.x += delta[i].c1.x * t;
+        shape[i].c1.y += delta[i].c1.y * t;
+
+        shape[i].c2.x += delta[i].c2.x * t;
+        shape[i].c2.y += delta[i].c2.y * t;
+    }
+}
+
+void buildFinalShape(BezierLine* out, const EyeState& e)
+{
+    // Basis
+    copyShape(out, baseShape);
+
+    // Emotionen (nur wenn NICHT geblinkt wird)
+    float blinkFactor = e.blink;
+
+    float emoWeight = 1.0f - blinkFactor;
+
+    applyEmotion(out, deltaAngry, e.angry * emoWeight);
+    applyEmotion(out, deltaHappy, e.happy * emoWeight);
+
+    applyEmotion(out, deltaBlink, blinkFactor);
 }
 
 void blink(EyeState &e, EyeState &target, float blink)
