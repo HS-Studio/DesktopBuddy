@@ -305,6 +305,10 @@ void fillPolygonET(EyeRenderCache &cache, LGFX_Sprite &spr, uint16_t color);
 
 void deformShape(BezierLine *shape, const EyeState &e, bool mirror = false);
 void morphShape(BezierLine *out, const BezierLine *base, const BezierLine *target, float t = 0.1f);
+
+void transformShape(BezierLine* shape, const EyeState& e, bool mirror = false);
+void toScreenSpace(std::vector<Point>& pts, const EyeState& e);
+
 void blink(EyeState &e, EyeState &target, float blink);
 
 // FPS stuff

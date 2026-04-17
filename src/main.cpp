@@ -89,7 +89,7 @@ void loop()
 
     // Konvergenz
     eyeL.pos.x += eyePair.convergence;
-    eyeR.pos.x += eyePair.convergence;
+    eyeR.pos.x -= eyePair.convergence;
 
     drawFace(eyePair, eyeL, eyeR, 24, 100);
 
@@ -238,9 +238,6 @@ void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache, uint16_t s
 
     int16_t x = e.pos.x * (MAX_W * 0.25);
     int16_t y = e.pos.y * (MAX_H * 0.25);
-
-    if (mirror)
-        gX -= (eyePair.convergence * MAX_W) * 0.5f;
 
     fillPolygonET(cache, maskSprite, TFT_WHITE);
     // fillPolygon(cache.pts, maskSprite, TFT_WHITE);
@@ -394,18 +391,19 @@ void updateShapeCache(EyeRenderCache &cache, EyeState &e, bool mirror)
         cache.dirty)
     {
         // bezier deform
-        BezierLine tempShape1[4];
-        BezierLine tempShape2[4];
-        BezierLine tempShape3[4];
+        BezierLine tempShape[4];
 
-        morphShape(tempShape1, baseShape, angryShape, e.angry);
-        morphShape(tempShape2, tempShape1, happyShape, e.happy);
-        morphShape(tempShape3, tempShape2, blinkShape, e.blink);
+        morphShape(tempShape, baseShape, angryShape, e.angry);
+        morphShape(tempShape, tempShape, happyShape, e.happy);
+        morphShape(tempShape, tempShape, blinkShape, e.blink);
 
-        deformShape(tempShape3, e, mirror);
+        transformShape(tempShape, e, mirror);
 
         // Shape bauen
-        buildShape(tempShape3, 4, bezierRes, cache.pts);
+        buildShape(tempShape, 4, bezierRes, cache.pts);
+        
+        // Screen space
+        toScreenSpace(cache.pts, e);
 
         // Edge Table bauen
         buildEdgeTable(cache);
@@ -564,6 +562,57 @@ void morphShape(BezierLine *out, const BezierLine *base, const BezierLine *targe
     for (int i = 0; i < 4; i++)
     {
         out[i] = lerp(base[i], target[i], t);
+    }
+}
+
+void transformShape(BezierLine* shape, const EyeState& e, bool mirror)
+{
+    float sx = e.scale.x;
+    float sy = e.scale.y;
+
+    auto transform = [&](Point& p)
+    {
+        // Center auf (0,0)
+        p.x -= 0.5f;
+        p.y -= 0.5f;
+
+        // Mirror
+        if (mirror)
+            p.x = -p.x;
+
+        // Scale
+        p.x *= sx;
+        p.y *= sy;
+
+        // zurück in 0..1 Raum
+        p.x += 0.5f;
+        p.y += 0.5f;
+    };
+
+    for(int i = 0; i < 4; i++)
+    {
+        transform(shape[i].ps);
+        transform(shape[i].pe);
+        transform(shape[i].c1);
+        transform(shape[i].c2);
+    }
+}
+
+void toScreenSpace(std::vector<Point>& pts, const EyeState& e)
+{
+    float offsetX = (MAX_W / 2) + e.pos.x * MAX_W * 0.25f;
+    float offsetY = (MAX_H / 2) + e.pos.y * MAX_H * 0.25f;
+
+    for(auto& p : pts)
+    {
+        p.x *= (MAX_W - 2);
+        p.y *= (MAX_H - 2);
+
+        // Y flip
+        p.y = (MAX_H - 2) - p.y;
+
+        p.x += offsetX - (MAX_W / 2);
+        p.y += offsetY - (MAX_H / 2);
     }
 }
 
