@@ -36,19 +36,44 @@ struct BezierLine
     Point c2; // controll 2
 };
 
+struct EyeParams
+{
+    Point center;
+
+    Point scale;
+    float angle;
+
+    Point upper_inner_radius;
+    Point upper_outer_radius;
+    Point lower_inner_radius;
+    Point lower_outer_radius;
+};
+
+struct Lid
+{
+    float y;
+    float angle;
+    float bend;
+};
+
 struct EyeState
 {
+    EyeParams param;
+
+    Lid upperLid;
+    Lid lowerLid;
+
     Point gaze;
-    Point pos;
-    Point scale;
+
+    Point position;
+
     float pupilSize;
-    float blink;
-    float squash;
-    float upperLid;
-    float lowerLid;
-    float angry;
-    float happy;
+
+    float scale_factor_lid_height;
+    float scale_factor_lid_bend;
+
     bool mirror;
+
     lgfx::rgb888_t color;
     uint8_t brightnes;
 };
@@ -82,173 +107,85 @@ struct EyeRenderCache
     bool dirty = true;
 };
 
-static BezierLine baseShape[4] =
-    {
-        // top
-        {
-            {0.10f, 0.90f}, // p1
-            {0.90f, 0.90f}, // p2
-            {0.20f, 1.00f}, // c1
-            {0.80f, 1.00f}, // c2
-        },
-        // right
-        {
-            {0.90f, 0.90f}, // p1
-            {0.90f, 0.10f}, // p2
-            {1.00f, 0.80f}, // c1
-            {1.00f, 0.20f}, // c2
-        },
-        // bottom
-        {
-            {0.90f, 0.10f}, // p1
-            {0.10f, 0.10f}, // p2
-            {0.80f, 0.00f}, // c1
-            {0.20f, 0.00f}, // c2
-        },
-        // left
-        {
-            {0.10f, 0.10f}, // p1
-            {0.10f, 0.90f}, // p2
-            {0.00f, 0.20f}, // c1
-            {0.00f, 0.80f}, // c2
-        }};
-
-static BezierLine blinkShape[4] =
-    {
-        // top
-        {
-            {-0.10f, 0.29f}, // p1
-            {1.10f, 0.29f},  // p2
-            {-0.00f, 0.24f}, // c1
-            {1.00f, 0.24f},  // c2
-        },
-        // right
-        {
-            {1.10f, 0.29f}, // p1
-            {1.10f, 0.20f}, // p2
-            {1.19f, 0.33f}, // c1
-            {1.20f, 0.20f}, // c2
-        },
-        // bottom
-        {
-            {1.10f, 0.20f},  // p1
-            {-0.10f, 0.20f}, // p2
-            {1.00f, 0.20f},  // c1
-            {0.00f, 0.20f},  // c2
-        },
-        // left
-        {
-            {-0.10f, 0.20f}, // p1
-            {-0.10f, 0.29f}, // p2
-            {-0.20f, 0.20f}, // c1
-            {-0.19f, 0.33f}, // c2
-        },
-};
-
-static BezierLine angryShape[4] =
-    {
-        // top
-        {
-            {0.10f, 0.65f}, // p1
-            {0.90f, 0.45f}, // p2
-            {0.20f, 0.60f}, // c1
-            {0.70f, 0.45f}, // c2
-        },
-        // right
-        {
-            {0.90f, 0.45f}, // p1
-            {0.90f, 0.25f}, // p2
-            {0.93f, 0.39f}, // c1
-            {0.93f, 0.30f}, // c2
-        },
-        // bottom
-        {
-            {0.90f, 0.25f}, // p1
-            {0.10f, 0.25f}, // p2
-            {0.85f, 0.15f}, // c1
-            {0.17f, 0.18f}, // c2
-        },
-        // left
-        {
-            {0.10f, 0.25f}, // p1
-            {0.10f, 0.65f}, // p2
-            {0.03f, 0.32f}, // c1
-            {0.05f, 0.55f}, // c2
-        },
-};
-
-static BezierLine happyShape[4] =
-    {
-        // top
-        {
-            {0.10f, 0.70f}, // p1
-            {0.90f, 0.70f}, // p2
-            {0.20f, 0.80f}, // c1
-            {0.80f, 0.80f}, // c2
-        },
-        // right
-        {
-            {0.90f, 0.70f}, // p1
-            {0.90f, 0.50f}, // p2
-            {0.95f, 0.65f}, // c1
-            {0.95f, 0.45f}, // c2
-        },
-        // bottom
-        {
-            {0.90f, 0.50f}, // p1
-            {0.10f, 0.50f}, // p2
-            {0.80f, 0.60f}, // c1
-            {0.20f, 0.60f}, // c2
-        },
-        // left
-        {
-            {0.10f, 0.50f}, // p1
-            {0.10f, 0.70f}, // p2
-            {0.05f, 0.45f}, // c1
-            {0.05f, 0.65f}, // c2
-        },
-};
-
-BezierLine deltaBlink[4];
-BezierLine deltaAngry[4];
-BezierLine deltaHappy[4];
-
-bool buttonUp = false;
-
 EyeRenderCache cacheL;
 EyeRenderCache cacheR;
 
-EyeState default_state =
-    {
-        {0.0f, 0.0f},   //  gaze        -1 .. 1
-        {0.0, 0.0},     //  offset      -1 .. 1
-        {0.75f, 0.75f}, //  scale        0.1 .. 1.0
-        0.5f,           //  pupilSize   0.5 .. 1.2
-        0.0f,           //  blink       0..1
-        0.0f,           //  squash      0.8 .. 1.2
-        0.0f,           //  upperLid    0..1
-        0.0f,           //  lowerLid    0..1
-        0.0f,           //  agry
-        0.0f,           //  happy
-        false,
-        {0, 255, 0},    //  color
-        255};
+EyeParams base_params
+{
+    {0.5f, 0.5f}, // center
+
+    {0.75f, 0.75f}, // scale
+    0.0f,         // angle
+
+    {1.0f, 1.0f}, // upper_inner_radius
+    {1.0f, 1.0f}, // upper_outer_radius
+    {1.0f, 1.0f}, // lower_inner_radius
+    {1.0f, 1.0f}  // lower_outer_radius
+};
+
+EyeParams start_params
+{
+    {0.5f, 0.5f}, // center
+
+    {0.9f, 0.1f}, // scale
+    0.0f,         // angle
+
+    {0.25f, 0.25f}, // upper_inner_radius
+    {0.25f, 0.25f}, // upper_outer_radius
+    {0.25f, 0.25f}, // lower_inner_radius
+    {0.25f, 0.25f}  // lower_outer_radius
+};
+
+Lid base_lid
+{
+    0.0f, //  y
+    0.0f, //  angle
+    2.0f  //  bend
+};
 
 EyeState start_state =
     {
+        start_params,
+
+        base_lid,
+        base_lid,
+
         {0.0f, 0.0f}, //  gaze        -1 .. 1
-        {0.0, 0.0},   //  offset      -1 .. 1
-        {1.0f, 0.1f}, //  scale        0.1 .. 1.0
-        0.5f,         //  pupilSize   0.5 .. 1.2
-        0.0f,         //  blink       0..1
-        0.0f,         //  squash      0.8 .. 1.2
-        0.0f,         //  upperLid    0..1
-        0.0f,         //  lowerLid    0..1
-        0.0f,         //  agry
-        0.0f,         //  happy
-        false,
-        {255, 0, 0},  //  color
-        0};
+
+        {0.0, 0.0}, //  position      -1 .. 1
+
+        1.0f, //  pupilSize   0.5 .. 1.2
+
+        1.0f, //  scale_factor_lid_height
+        1.0f, //  scale_factor_lid_bend
+
+        false, //  mirror
+
+        {0, 0, 0}, //  color
+        0          //  brightnes
+};
+
+EyeState base_state =
+    {
+        base_params,
+
+        base_lid,
+        base_lid,
+
+        {0.0f, 0.0f}, //  gaze        -1 .. 1
+
+        {0.0, 0.0}, //  position      -1 .. 1
+
+        1.0f, //  pupilSize   0.5 .. 1.2
+
+        1.0f, //  scale_factor_lid_height
+        1.0f, //  scale_factor_lid_bend
+
+        false, //  mirror
+
+        {0, 255, 0}, //  color
+        255          //  brightnes
+};
 
 EyePair eyePair;
 
@@ -268,7 +205,7 @@ lgfx::colors_t pupilColors =
         pupilGradient,
         4};
 
-int bezierRes = 5;
+int bezierRes = 8;
 
 Point joy = {0, 0}; // to store the X-axis value
 
@@ -285,7 +222,8 @@ void buildShape(BezierLine *shape, int count, int steps, std::vector<Point> &pts
 
 // Draw Funktions
 // void drawEye(LGFX_Sprite& eyeSpr, EyeState& e, uint16_t screen_x, uint16_t screen_y);
-void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache, uint16_t screen_x, uint16_t screen_y, bool mirror = false);
+void drawEyeMask(LGFX_Sprite &mask, const EyeState &e);
+void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache, uint16_t screen_x, uint16_t screen_y);
 void drawFace(EyePair &pair, EyeState &eL, EyeState &eR, int screen_x, int screen_y); // X ↕ Y ↔
 
 float lerp(float a, float b, float t = 0.1f);
@@ -300,19 +238,19 @@ bool updateColor(lgfx::rgb888_t &currentColor, lgfx::rgb888_t targetColor, float
 void updateEyeState(EyeState &eye, EyeState &target, float speed = 0.1f);
 
 bool hasChanged(const Point &a, const Point &b, float eps = 0.001f);
-void updateShapeCache(EyeRenderCache &cache, EyeState &e, bool mirror = false);
+// void updateShapeCache(EyeRenderCache &cache, EyeState &e, bool mirror = false);
 void buildEdgeTable(EyeRenderCache &cache);
 void fillPolygonET(EyeRenderCache &cache, LGFX_Sprite &spr, uint16_t color);
 
-void transformShape(BezierLine* shape, const EyeState& e, bool mirror = false);
-void toScreenSpace(std::vector<Point>& pts, const EyeState& e);
+void applyLids(EyeParams &p, const EyeState &e);
+void buildShapeFromParams(BezierLine *out, const EyeParams &p);
+void transformShape(BezierLine *shape, const EyeState &e, bool mirror);
+void toScreenSpace(std::vector<Point> &pts, const EyeState &e);
+void buildEyeGeometry(EyeRenderCache &cache, EyeState &e, bool mirror);
 
-void computeDelta(BezierLine* delta, const BezierLine* base, const BezierLine* target);
-void copyShape(BezierLine* dst, const BezierLine* src);
-void applyEmotion(BezierLine* shape, const BezierLine* delta, float t);
-void buildFinalShape(BezierLine* out, const EyeState& e);
+void copyShape(BezierLine *dst, const BezierLine *src);
 
-void blink(EyeState &e, EyeState &target, float blink);
+// void blink(EyeState &e, EyeState &target, float blink);
 
 // FPS stuff
 bool showFps = true;
