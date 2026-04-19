@@ -50,9 +50,9 @@ void setup()
 
     eyePair.convergence = 0.5f;
 
-    computeDelta(deltaAngry, baseShape, angryShape);
-    computeDelta(deltaHappy, baseShape, happyShape);
-    computeDelta(deltaBlink, baseShape, blinkShape);
+    computeDelta(deltaAngry, _baseShape, _angryShape);
+    computeDelta(deltaHappy, _baseShape, _happyShape);
+    computeDelta(deltaBlink, _baseShape, _blinkShape);
 
     // PWM konfigurieren
     ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
@@ -93,6 +93,8 @@ void loop()
     // Konvergenz
     eyeL.pos.x += eyePair.convergence;
     eyeR.pos.x -= eyePair.convergence;
+
+    eyeR.mirror = true;
 
     drawFace(eyePair, eyeL, eyeR, 24, 100);
 
@@ -148,22 +150,22 @@ void sampleBezier(const BezierLine &b, std::vector<Point> &pts, uint8_t steps)
     }
 }
 
-void buildShape(BezierLine *shape, int count, int steps, std::vector<Point> &pts)
+void buildShape(BezierLine *shape, int steps, std::vector<Point> &pts)
 {
     pts.clear();
 
-    for (int i = 0; i < count; i++)
+    for (int i = 0; i < BEZIER_COUNT; i++)
     {
         sampleBezier(shape[i], pts, steps);
     }
 }
 
-void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache, uint16_t screen_x, uint16_t screen_y, bool mirror)
+void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache, uint16_t screen_x, uint16_t screen_y)
 {
     eyeSpr.fillSprite(pupilGradient[3]);
     maskSprite.fillSprite(TFT_BLACK);
 
-    updateShapeCache(cache, e, mirror);
+    updateShapeCache(cache, e);
 
     int16_t gX = (e.gaze.x * MAX_X);
     int16_t gY = (e.gaze.y * MAX_Y);
@@ -200,7 +202,7 @@ void drawFace(EyePair &pair, EyeState &eL, EyeState &eR, int screen_x, int scree
     // drawEye(eyeRSprite, eR, x + MAX_W, y);
 
     drawEye(eyeLSprite, eL, cacheL, x, y);
-    drawEye(eyeRSprite, eR, cacheR, x + MAX_W, y, true);
+    drawEye(eyeRSprite, eR, cacheR, x + MAX_W, y);
     ledcWrite(PWM_CHANNEL, pair.current.brightnes);
 }
 
@@ -313,24 +315,24 @@ bool hasChanged(const Point &a, const Point &b, float eps)
     return (abs(a.x - b.x) > eps) || (abs(a.y - b.y) > eps);
 }
 
-void updateShapeCache(EyeRenderCache &cache, EyeState &e, bool mirror)
+void updateShapeCache(EyeRenderCache &cache, EyeState &e)
 {
     if (hasChanged(e.scale, cache.lastState.scale) ||
         hasChanged(e.pos, cache.lastState.pos) ||
         abs(e.blink - cache.lastState.blink) > 0.001f ||
         abs(e.angry - cache.lastState.angry) > 0.001f ||
         abs(e.happy - cache.lastState.happy) > 0.001f ||
-        cache.lastState.mirror != mirror ||
+        cache.lastState.mirror != e.mirror ||
         cache.dirty)
     {
         // bezier deform
-        BezierLine finalShape[4];
+        BezierLine finalShape[BEZIER_COUNT];
 
         buildFinalShape(finalShape, e);
-        transformShape(finalShape, e, mirror);
+        transformShape(finalShape, e);
 
         // Shape bauen
-        buildShape(finalShape, 4, bezierRes, cache.pts);
+        buildShape(finalShape, bezierRes, cache.pts);
         
         // Screen space
         toScreenSpace(cache.pts, e);
@@ -341,6 +343,7 @@ void updateShapeCache(EyeRenderCache &cache, EyeState &e, bool mirror)
         cache.lastState.scale = e.scale;
         cache.lastState.pos = e.pos;
         cache.lastState.blink = e.blink;
+        cache.lastState.mirror = e.mirror;
         cache.dirty = false;
     }
 }
@@ -428,7 +431,7 @@ void fillPolygonET(EyeRenderCache &cache, LGFX_Sprite &spr, uint16_t color)
     }
 }
 
-void transformShape(BezierLine* shape, const EyeState& e, bool mirror)
+void transformShape(BezierLine* shape, const EyeState& e)
 {
     float sx = e.scale.x;
     float sy = e.scale.y;
@@ -440,7 +443,7 @@ void transformShape(BezierLine* shape, const EyeState& e, bool mirror)
         p.y -= 0.5f;
 
         // Mirror
-        if (mirror)
+        if (e.mirror)
             p.x = -p.x;
 
         // Scale
@@ -452,7 +455,7 @@ void transformShape(BezierLine* shape, const EyeState& e, bool mirror)
         p.y += 0.5f;
     };
 
-    for(int i = 0; i < 4; i++)
+    for(int i = 0; i < BEZIER_COUNT; i++)
     {
         transform(shape[i].ps);
         transform(shape[i].pe);
@@ -481,7 +484,7 @@ void toScreenSpace(std::vector<Point>& pts, const EyeState& e)
 
 void computeDelta(BezierLine* delta, const BezierLine* base, const BezierLine* target)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < BEZIER_COUNT; i++)
     {
         delta[i].ps.x = target[i].ps.x - base[i].ps.x;
         delta[i].ps.y = target[i].ps.y - base[i].ps.y;
@@ -499,13 +502,13 @@ void computeDelta(BezierLine* delta, const BezierLine* base, const BezierLine* t
 
 void copyShape(BezierLine* dst, const BezierLine* src)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < BEZIER_COUNT; i++)
         dst[i] = src[i];
 }
 
 void applyEmotion(BezierLine* shape, const BezierLine* delta, float t)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < BEZIER_COUNT; i++)
     {
         shape[i].ps.x += delta[i].ps.x * t;
         shape[i].ps.y += delta[i].ps.y * t;
@@ -524,15 +527,15 @@ void applyEmotion(BezierLine* shape, const BezierLine* delta, float t)
 void buildFinalShape(BezierLine* out, const EyeState& e)
 {
     // Basis
-    copyShape(out, baseShape);
+    copyShape(out, _baseShape);
 
     // Emotionen (nur wenn NICHT geblinkt wird)
     float blinkFactor = e.blink;
 
     float emoWeight = 1.0f - blinkFactor;
 
-    applyEmotion(out, deltaAngry, e.angry * emoWeight);
     applyEmotion(out, deltaHappy, e.happy * emoWeight);
+    applyEmotion(out, deltaAngry, e.angry * emoWeight);
 
     applyEmotion(out, deltaBlink, blinkFactor);
 }
