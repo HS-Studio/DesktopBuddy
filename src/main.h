@@ -117,10 +117,10 @@ EyeParams base_params
     {0.75f, 0.75f}, // scale
     0.0f,         // angle
 
-    {1.0f, 1.0f}, // upper_inner_radius
-    {1.0f, 1.0f}, // upper_outer_radius
-    {1.0f, 1.0f}, // lower_inner_radius
-    {1.0f, 1.0f}  // lower_outer_radius
+    {0.4f, 0.4f}, // upper_inner_radius
+    {0.4f, 0.4f}, // upper_outer_radius
+    {0.4f, 0.4f}, // lower_inner_radius
+    {0.4f, 0.4f}  // lower_outer_radius
 };
 
 EyeParams start_params
@@ -130,10 +130,10 @@ EyeParams start_params
     {0.9f, 0.1f}, // scale
     0.0f,         // angle
 
-    {0.25f, 0.25f}, // upper_inner_radius
-    {0.25f, 0.25f}, // upper_outer_radius
-    {0.25f, 0.25f}, // lower_inner_radius
-    {0.25f, 0.25f}  // lower_outer_radius
+    {1.0f, 1.0f}, // upper_inner_radius
+    {1.0f, 1.0f}, // upper_outer_radius
+    {1.0f, 1.0f}, // lower_inner_radius
+    {1.0f, 1.0f}  // lower_outer_radius
 };
 
 Lid base_lid
