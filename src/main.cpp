@@ -48,7 +48,7 @@ void setup()
     eyePair.current = start_state;
     eyePair.target = default_state;
 
-    blinkbefore = eyePair.target.emotion.blink;
+    //blinkbefore = eyePair.target.emotion.blink;
 
     eyePair.convergence = 0.6f;
 
@@ -89,17 +89,17 @@ void loop()
     // Ziel setzen
     if (joy.x > 0.5)
     {
-        eyePair.target.emotion = angry;
-        eyePair.target.color = lgfx::v1::rgb888_t({uint8_t(eyePair.target.emotion.angry * 255), 0, 0});
+        eyePair.target.emotion = emo_angry;
+        eyePair.target.color = lgfx::v1::rgb888_t({255, 0, 0});
     }
     else if (joy.x < -0.5)
     {
-        eyePair.target.emotion = neutral;
+        eyePair.target.emotion = emo_happy;
         eyePair.target.color = default_state.color;
     }
     else
     {
-        eyePair.target.emotion = neutral;
+        eyePair.target.emotion = emo_neutral;
         eyePair.target.color = default_state.color;
     }
 
@@ -232,7 +232,42 @@ lgfx::rgb888_t lerpColor(const lgfx::rgb888_t &a, const lgfx::rgb888_t &b, float
         lerp(a.b, b.b, t)};
 }
 
-Emotion lerpEmotion(const Emotion &a, const Emotion &b, float t)
+bool emotionChanged(const Emotion &a, const Emotion &b)
+{
+/*     if (abs(a.blink - b.blink) > 0.001f)
+        return true; */
+    if (a.count != b.count)
+        return true;
+
+    for (int i = 0; i < a.count; i++)
+    {
+        if (a.layers[i].shape != b.layers[i].shape)
+            return true;
+        if (abs(a.layers[i].weight - b.layers[i].weight) > 0.001f)
+            return true;
+    }
+
+    return false;
+}
+
+void setEmotion(Emotion& emo, const BezierLine* shape, float weight)
+{
+    for (int i = 0; i < emo.count; i++)
+    {
+        if (emo.layers[i].shape == shape)
+        {
+            emo.layers[i].weight = weight;
+            return;
+        }
+    }
+
+    if (emo.count < NUM_EMOTIONS)
+    {
+        emo.layers[emo.count++] = {shape, weight};
+    }
+}
+
+/* Emotion lerpEmotion(const Emotion &a, const Emotion &b, float t)
 {
     Emotion emo;
 
@@ -250,6 +285,93 @@ Emotion lerpEmotion(const Emotion &a, const Emotion &b, float t)
     emo.rotationR = lerp(a.rotationR, b.rotationR, t);
 
     return emo;
+} */
+
+Emotion lerpEmotion(const Emotion &a, const Emotion &b, float t)
+{
+    Emotion out{};
+
+    // --- einfache Werte ---
+    //out.blink = lerp(a.blink, b.blink, t);
+
+    out.scaleL = lerp(a.scaleL, b.scaleL, t);
+    out.scaleR = lerp(a.scaleR, b.scaleR, t);
+
+    out.offsetL = lerp(a.offsetL, b.offsetL, t);
+    out.offsetR = lerp(a.offsetR, b.offsetR, t);
+
+    out.flipL = (t < 0.5f) ? a.flipL : b.flipL;
+    out.flipR = (t < 0.5f) ? a.flipR : b.flipR;
+
+    out.rotationL = lerp(a.rotationL, b.rotationL, t);
+    out.rotationR = lerp(a.rotationR, b.rotationR, t);
+
+    // --- Layer mergen ---
+    out.count = 0;
+
+    // 1. alle Shapes aus A
+    for (int i = 0; i < a.count; i++)
+    {
+        const BezierLine *shape = a.layers[i].shape;
+
+        float wa = a.layers[i].weight;
+        float wb = 0.0f;
+
+        // suche gleiches Shape in B
+        for (int j = 0; j < b.count; j++)
+        {
+            if (b.layers[j].shape == shape)
+            {
+                wb = b.layers[j].weight;
+                break;
+            }
+        }
+
+        float w = lerp(wa, wb, t);
+
+        if (w > 0.001f && out.count < NUM_EMOTIONS)
+        {
+            out.layers[out.count++] = {shape, w};
+        }
+    }
+
+    // 2. Shapes nur aus B hinzufügen
+    for (int i = 0; i < b.count; i++)
+    {
+        const BezierLine *shape = b.layers[i].shape;
+
+        // existiert schon?
+        bool found = false;
+        for (int j = 0; j < out.count; j++)
+        {
+            if (out.layers[j].shape == shape)
+            {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found && out.count < NUM_EMOTIONS)
+        {
+            float w = lerp(0.0f, b.layers[i].weight, t);
+
+            if (w > 0.001f)
+                out.layers[out.count++] = {shape, w};
+        }
+    }
+
+    /* // normalize
+    float sum = 0;
+    for (int i = 0; i < out.count; i++)
+        sum += out.layers[i].weight;
+
+    if (sum > 0)
+    {
+        for (int i = 0; i < out.count; i++)
+            out.layers[i].weight /= sum;
+    } */
+
+    return out;
 }
 
 void buildGradient(lgfx::rgb888_t *grad, const lgfx::rgb888_t target)
@@ -321,9 +443,7 @@ void updateShapeCache(EyeRenderCache &cache, EyeState &e)
 {
     if (hasChanged(e.scale, cache.lastState.scale) ||
         hasChanged(e.pos, cache.lastState.pos) ||
-        abs(e.emotion.blink - cache.lastState.emotion.blink) > 0.001f ||
-        abs(e.emotion.angry - cache.lastState.emotion.angry) > 0.001f ||
-        abs(e.emotion.happy - cache.lastState.emotion.happy) > 0.001f ||
+        emotionChanged(e.emotion, cache.lastState.emotion) ||
         e.flipX != cache.lastState.flipX ||
         cache.dirty)
     {
@@ -345,7 +465,7 @@ void updateShapeCache(EyeRenderCache &cache, EyeState &e)
 
         cache.lastState.scale = e.scale;
         cache.lastState.pos = e.pos;
-        cache.lastState.emotion.blink = e.emotion.blink;
+        //cache.lastState.emotion.blink = e.emotion.blink;
         cache.lastState.flipX = e.flipX;
         cache.dirty = false;
     }
@@ -494,39 +614,41 @@ void morphShape(BezierLine *out, const BezierLine *base, const BezierLine *targe
 
 void applyEmotion(const Emotion &emo, EyeState &left, EyeState &right)
 {
-    // Parameter übernehmen
+    // Transform
     left.scale = emo.scaleL;
     right.scale = emo.scaleR;
 
     left.pos = emo.offsetL;
     right.pos = emo.offsetR;
 
-    // mirror
     left.flipX = emo.flipL;
     right.flipX = emo.flipR;
 
-    // Emotion-Werte für Shape
-    left.emotion.angry = emo.angry;
-    left.emotion.happy = emo.happy;
-    left.emotion.blink = emo.blink;
-
-    right.emotion = left.emotion;
+    // Emotion komplett übernehmen
+    left.emotion = emo;
+    right.emotion = emo;
 }
 
 void blendShapes(BezierLine *out, const EyeState &e)
 {
     // Basis
-    memcpy(out, _baseShape, sizeof(BezierLine) * BEZIER_COUNT);
+    memcpy(out, baseShape, sizeof(BezierLine) * BEZIER_COUNT);
 
     // Emotionen (nur wenn NICHT geblinkt wird)
-    float blinkFactor = e.emotion.blink;
+    //float blinkFactor = e.emotion.blink;
 
-    float emoWeight = 1.0f - blinkFactor;
+    //float emoWeight = 1.0f - blinkFactor;
 
-    morphShape(out, out, _happyShape, e.emotion.happy * emoWeight);
-    morphShape(out, out, _angryShape, e.emotion.angry * emoWeight);
+    // alle Emotionen durchlaufen
+    for (int i = 0; i < e.emotion.count; i++)
+    {
+        const EmotionLayer &layer = e.emotion.layers[i];
 
-    morphShape(out, out, _blinkShape, blinkFactor);
+        //morphShape(out, out, layer.shape, layer.weight * emoWeight);
+        morphShape(out, out, layer.shape, layer.weight);
+    }
+
+    //morphShape(out, out, blinkShape, blinkFactor);
 }
 
 void blink(EyeState &e, EyeState &target, float blink)
@@ -535,14 +657,14 @@ void blink(EyeState &e, EyeState &target, float blink)
 
     if (currentMillis - animMillis >= random(4000, 8000))
     {
-        blinkbefore = target.emotion.blink;
-        target.emotion.blink = blink;
+        //blinkbefore = target.emotion.blink;
+        //target.emotion.blink = blink;
         animMillis = currentMillis;
     }
-    if (blink - e.emotion.blink < 0.15)
+/*     if (blink - e.emotion.blink < 0.15)
     {
-        target.emotion.blink = blinkbefore;
-    }
+        //target.emotion.blink = blinkbefore;
+    } */
     // Serial.println(e.emotion.blink);
 }
 
