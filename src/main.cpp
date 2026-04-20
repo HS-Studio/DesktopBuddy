@@ -27,6 +27,7 @@ void setup()
     tft.setRotation(0);
     tft.fillScreen(TFT_BLACK);
 
+    // Sprites
     eyeLSprite.setColorDepth(16);
     eyeLSprite.createSprite(MAX_W, MAX_H);
 
@@ -43,16 +44,13 @@ void setup()
     fpsCanvas.setColorDepth(16);
     fpsCanvas.createSprite(18, 8);
 
+    // eye settings
     eyePair.current = start_state;
     eyePair.target = default_state;
 
-    blinkbefore = eyePair.target.blink;
+    blinkbefore = eyePair.target.emotion.blink;
 
-    eyePair.convergence = 0.5f;
-
-    computeDelta(deltaAngry, baseShape, angryShape);
-    computeDelta(deltaHappy, baseShape, happyShape);
-    computeDelta(deltaBlink, baseShape, blinkShape);
+    eyePair.convergence = 0.6f;
 
     // PWM konfigurieren
     ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
@@ -69,7 +67,7 @@ void setup()
     }
     Serial.printf("SRAM Größe: %d bytes\n", ESP.getHeapSize());
     Serial.printf("Freier SRAM: %d bytes\n", ESP.getFreeHeap());
-}
+};
 
 void loop()
 {
@@ -79,46 +77,37 @@ void loop()
     joy.x = constrain(joy.x, -1, 1);
     joy.y = constrain(joy.y, -1, 1);
 
-    blink(eyePair.current, eyePair.target, 0.98f);
+    // blink(eyePair.current, eyePair.target, 0.98f);
 
-    // smooth interpolation
-    updateEyeState(eyePair.current, eyePair.target, 0.20f);
-
-    // Augen ableiten
     eyeL = eyePair.current;
     eyeR = eyePair.current;
-
-    // eyePair.convergence = 0.8f;
-
-    // Konvergenz
-    eyeL.pos.x += eyePair.convergence;
-    eyeR.pos.x -= eyePair.convergence;
 
     drawFace(eyePair, eyeL, eyeR, 24, 100);
 
     // eyePair.current.brightnes = eyePair.current.scale.y*255;
 
     // Ziel setzen
-    if (joy.x > 0)
+    if (joy.x > 0.5)
     {
-        eyePair.target.angry = joy.x;
-        eyePair.target.happy = 0.0f;
+        eyePair.target.emotion = angry;
+        eyePair.target.color = lgfx::v1::rgb888_t({uint8_t(eyePair.target.emotion.angry * 255), 0, 0});
+    }
+    else if (joy.x < -0.5)
+    {
+        eyePair.target.emotion = neutral;
+        eyePair.target.color = default_state.color;
     }
     else
     {
-        eyePair.target.happy = -joy.x;
-        eyePair.target.angry = 0.0f;
+        eyePair.target.emotion = neutral;
+        eyePair.target.color = default_state.color;
     }
 
     eyePair.target.gaze.x = joy.y; // Später automatisch / random / Emotion
     // eyePair.target.gaze.y = joy.x;
 
-    if (eyePair.target.angry >= 0.5)
-        eyePair.target.color = lgfx::v1::rgb888_t({uint8_t(eyePair.target.angry * 255), 0, 0});
-    else
-        eyePair.target.color = default_state.color;
-    // Serial.printf(">joy.x: %f\n>joy.y: %f\n", joy.x, joy.y);
-    // Serial.printf(">blink: %f\n", eyePair.current.blink);
+    // smooth interpolation
+    updateEyeState(eyePair.current, eyePair.target, 0.20f);
 
     if (showFps)
         drawFPS();
@@ -148,22 +137,22 @@ void sampleBezier(const BezierLine &b, std::vector<Point> &pts, uint8_t steps)
     }
 }
 
-void buildShape(BezierLine *shape, int count, int steps, std::vector<Point> &pts)
+void buildShape(BezierLine *shape, int steps, std::vector<Point> &pts)
 {
     pts.clear();
 
-    for (int i = 0; i < count; i++)
+    for (int i = 0; i < BEZIER_COUNT; i++)
     {
         sampleBezier(shape[i], pts, steps);
     }
 }
 
-void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache, uint16_t screen_x, uint16_t screen_y, bool mirror)
+void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache, uint16_t screen_x, uint16_t screen_y)
 {
     eyeSpr.fillSprite(pupilGradient[3]);
     maskSprite.fillSprite(TFT_BLACK);
 
-    updateShapeCache(cache, e, mirror);
+    updateShapeCache(cache, e);
 
     int16_t gX = (e.gaze.x * MAX_X);
     int16_t gY = (e.gaze.y * MAX_Y);
@@ -194,27 +183,23 @@ void drawFace(EyePair &pair, EyeState &eL, EyeState &eR, int screen_x, int scree
     int16_t x = screen_x + eL.gaze.x * MAX_X;
     int16_t y = screen_y + eR.gaze.y * MAX_Y;
 
-    // drawEyeClipped(eyeLSprite, eL, x, y);
-    // drawEyeClipped(eyeRSprite, eR, x + MAX_W, y);
-    // drawEye(eyeLSprite, eL, x, y);
-    // drawEye(eyeRSprite, eR, x + MAX_W, y);
+    applyEmotion(pair.current.emotion, eL, eR);
+
+    // augen Abstand
+    eL.pos.x += pair.convergence;
+    eR.pos.x -= pair.convergence;
+
+    // Serial.printf("l: %f  r: %f \n", eL.scale.x, eR.scale.x);
 
     drawEye(eyeLSprite, eL, cacheL, x, y);
-    drawEye(eyeRSprite, eR, cacheR, x + MAX_W, y, true);
+    drawEye(eyeRSprite, eR, cacheR, x + MAX_W, y);
+
     ledcWrite(PWM_CHANNEL, pair.current.brightnes);
 }
 
 float lerp(float a, float b, float t)
 {
     return a + (b - a) * t;
-}
-
-Point lerp(Point &a, Point &b, float t)
-{
-    Point c;
-    c.x = lerp(a.x, b.x, t);
-    c.y = lerp(a.y, b.y, t);
-    return c;
 }
 
 Point lerp(const Point &a, const Point &b, float t)
@@ -245,6 +230,26 @@ lgfx::rgb888_t lerpColor(const lgfx::rgb888_t &a, const lgfx::rgb888_t &b, float
         lerp(a.r, b.r, t),
         lerp(a.g, b.g, t),
         lerp(a.b, b.b, t)};
+}
+
+Emotion lerpEmotion(const Emotion &a, const Emotion &b, float t)
+{
+    Emotion emo;
+
+    emo.angry = lerp(a.angry, b.angry, t);
+    emo.happy = lerp(a.happy, b.happy, t);
+    emo.blink = lerp(a.blink, b.blink, t);
+
+    emo.scaleL = lerp(a.scaleL, b.scaleL, t);
+    emo.scaleR = lerp(a.scaleR, b.scaleR, t);
+
+    emo.offsetL = lerp(a.offsetL, b.offsetL, t);
+    emo.offsetR = lerp(a.offsetR, b.offsetR, t);
+
+    emo.rotationL = lerp(a.rotationL, b.rotationL, t);
+    emo.rotationR = lerp(a.rotationR, b.rotationR, t);
+
+    return emo;
 }
 
 void buildGradient(lgfx::rgb888_t *grad, const lgfx::rgb888_t target)
@@ -290,15 +295,14 @@ void updateEyeState(EyeState &eye, EyeState &target, float speed)
 {
     eye.gaze = lerp(eye.gaze, target.gaze, speed);
     eye.pos = lerp(eye.pos, target.pos, speed);
-    eye.scale = lerp(eye.scale, target.scale, speed);
+    // eye.scale = lerp(eye.scale, target.scale, speed);
     eye.pupilSize = lerp(eye.pupilSize, target.pupilSize, speed);
-    eye.blink = lerp(eye.blink, target.blink, speed);
-    eye.squash = lerp(eye.squash, target.squash, speed);
-    eye.upperLid = lerp(eye.upperLid, target.upperLid, speed);
-    eye.lowerLid = lerp(eye.lowerLid, target.lowerLid, speed);
-    eye.angry = lerp(eye.angry, target.angry, speed);
-    eye.happy = lerp(eye.happy, target.happy, speed);
-    eye.brightnes = lerp( eye.brightnes, target.brightnes, speed);
+    eye.brightnes = lerp(eye.brightnes, target.brightnes, speed);
+
+    eye.emotion = lerpEmotion(eye.emotion, target.emotion, speed);
+
+    eye.emotion.flipL = target.emotion.flipL;
+    eye.emotion.flipR = target.emotion.flipR;
 
     if (updateColor(eye.color, target.color, speed))
     {
@@ -313,25 +317,26 @@ bool hasChanged(const Point &a, const Point &b, float eps)
     return (abs(a.x - b.x) > eps) || (abs(a.y - b.y) > eps);
 }
 
-void updateShapeCache(EyeRenderCache &cache, EyeState &e, bool mirror)
+void updateShapeCache(EyeRenderCache &cache, EyeState &e)
 {
     if (hasChanged(e.scale, cache.lastState.scale) ||
         hasChanged(e.pos, cache.lastState.pos) ||
-        abs(e.blink - cache.lastState.blink) > 0.001f ||
-        abs(e.angry - cache.lastState.angry) > 0.001f ||
-        abs(e.happy - cache.lastState.happy) > 0.001f ||
-        cache.lastState.mirror != mirror ||
+        abs(e.emotion.blink - cache.lastState.emotion.blink) > 0.001f ||
+        abs(e.emotion.angry - cache.lastState.emotion.angry) > 0.001f ||
+        abs(e.emotion.happy - cache.lastState.emotion.happy) > 0.001f ||
+        e.flipX != cache.lastState.flipX ||
         cache.dirty)
     {
         // bezier deform
-        BezierLine finalShape[4];
+        BezierLine finalShape[BEZIER_COUNT];
 
-        buildFinalShape(finalShape, e);
-        transformShape(finalShape, e, mirror);
+        blendShapes(finalShape, e);
+
+        transformShape(finalShape, e);
 
         // Shape bauen
-        buildShape(finalShape, 4, bezierRes, cache.pts);
-        
+        buildShape(finalShape, bezierRes, cache.pts);
+
         // Screen space
         toScreenSpace(cache.pts, e);
 
@@ -340,7 +345,8 @@ void updateShapeCache(EyeRenderCache &cache, EyeState &e, bool mirror)
 
         cache.lastState.scale = e.scale;
         cache.lastState.pos = e.pos;
-        cache.lastState.blink = e.blink;
+        cache.lastState.emotion.blink = e.emotion.blink;
+        cache.lastState.flipX = e.flipX;
         cache.dirty = false;
     }
 }
@@ -428,31 +434,30 @@ void fillPolygonET(EyeRenderCache &cache, LGFX_Sprite &spr, uint16_t color)
     }
 }
 
-void transformShape(BezierLine* shape, const EyeState& e, bool mirror)
+void transformShape(BezierLine *shape, const EyeState &e)
 {
     float sx = e.scale.x;
     float sy = e.scale.y;
 
-    auto transform = [&](Point& p)
+    auto transform = [&](Point &p)
     {
         // Center auf (0,0)
         p.x -= 0.5f;
         p.y -= 0.5f;
 
-        // Mirror
-        if (mirror)
-            p.x = -p.x;
-
         // Scale
         p.x *= sx;
         p.y *= sy;
+
+        if (e.flipX)
+            p.x = -p.x;
 
         // zurück in 0..1 Raum
         p.x += 0.5f;
         p.y += 0.5f;
     };
 
-    for(int i = 0; i < 4; i++)
+    for (int i = 0; i < BEZIER_COUNT; i++)
     {
         transform(shape[i].ps);
         transform(shape[i].pe);
@@ -461,12 +466,12 @@ void transformShape(BezierLine* shape, const EyeState& e, bool mirror)
     }
 }
 
-void toScreenSpace(std::vector<Point>& pts, const EyeState& e)
+void toScreenSpace(std::vector<Point> &pts, const EyeState &e)
 {
     float offsetX = (MAX_W / 2) + e.pos.x * MAX_W * 0.25f;
     float offsetY = (MAX_H / 2) + e.pos.y * MAX_H * 0.25f;
 
-    for(auto& p : pts)
+    for (auto &p : pts)
     {
         p.x *= (MAX_W - 2);
         p.y *= (MAX_H - 2);
@@ -479,62 +484,49 @@ void toScreenSpace(std::vector<Point>& pts, const EyeState& e)
     }
 }
 
-void computeDelta(BezierLine* delta, const BezierLine* base, const BezierLine* target)
+void morphShape(BezierLine *out, const BezierLine *base, const BezierLine *target, float t)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < BEZIER_COUNT; i++)
     {
-        delta[i].ps.x = target[i].ps.x - base[i].ps.x;
-        delta[i].ps.y = target[i].ps.y - base[i].ps.y;
-
-        delta[i].pe.x = target[i].pe.x - base[i].pe.x;
-        delta[i].pe.y = target[i].pe.y - base[i].pe.y;
-
-        delta[i].c1.x = target[i].c1.x - base[i].c1.x;
-        delta[i].c1.y = target[i].c1.y - base[i].c1.y;
-
-        delta[i].c2.x = target[i].c2.x - base[i].c2.x;
-        delta[i].c2.y = target[i].c2.y - base[i].c2.y;
+        out[i] = lerp(base[i], target[i], t);
     }
 }
 
-void copyShape(BezierLine* dst, const BezierLine* src)
+void applyEmotion(const Emotion &emo, EyeState &left, EyeState &right)
 {
-    for (int i = 0; i < 4; i++)
-        dst[i] = src[i];
+    // Parameter übernehmen
+    left.scale = emo.scaleL;
+    right.scale = emo.scaleR;
+
+    left.pos = emo.offsetL;
+    right.pos = emo.offsetR;
+
+    // mirror
+    left.flipX = emo.flipL;
+    right.flipX = emo.flipR;
+
+    // Emotion-Werte für Shape
+    left.emotion.angry = emo.angry;
+    left.emotion.happy = emo.happy;
+    left.emotion.blink = emo.blink;
+
+    right.emotion = left.emotion;
 }
 
-void applyEmotion(BezierLine* shape, const BezierLine* delta, float t)
-{
-    for (int i = 0; i < 4; i++)
-    {
-        shape[i].ps.x += delta[i].ps.x * t;
-        shape[i].ps.y += delta[i].ps.y * t;
-
-        shape[i].pe.x += delta[i].pe.x * t;
-        shape[i].pe.y += delta[i].pe.y * t;
-
-        shape[i].c1.x += delta[i].c1.x * t;
-        shape[i].c1.y += delta[i].c1.y * t;
-
-        shape[i].c2.x += delta[i].c2.x * t;
-        shape[i].c2.y += delta[i].c2.y * t;
-    }
-}
-
-void buildFinalShape(BezierLine* out, const EyeState& e)
+void blendShapes(BezierLine *out, const EyeState &e)
 {
     // Basis
-    copyShape(out, baseShape);
+    memcpy(out, _baseShape, sizeof(BezierLine) * BEZIER_COUNT);
 
     // Emotionen (nur wenn NICHT geblinkt wird)
-    float blinkFactor = e.blink;
+    float blinkFactor = e.emotion.blink;
 
     float emoWeight = 1.0f - blinkFactor;
 
-    applyEmotion(out, deltaAngry, e.angry * emoWeight);
-    applyEmotion(out, deltaHappy, e.happy * emoWeight);
+    morphShape(out, out, _happyShape, e.emotion.happy * emoWeight);
+    morphShape(out, out, _angryShape, e.emotion.angry * emoWeight);
 
-    applyEmotion(out, deltaBlink, blinkFactor);
+    morphShape(out, out, _blinkShape, blinkFactor);
 }
 
 void blink(EyeState &e, EyeState &target, float blink)
@@ -543,15 +535,15 @@ void blink(EyeState &e, EyeState &target, float blink)
 
     if (currentMillis - animMillis >= random(4000, 8000))
     {
-        blinkbefore = target.blink;
-        target.blink = blink;
+        blinkbefore = target.emotion.blink;
+        target.emotion.blink = blink;
         animMillis = currentMillis;
     }
-    if (blink - e.blink < 0.15)
+    if (blink - e.emotion.blink < 0.15)
     {
-        target.blink = blinkbefore;
+        target.emotion.blink = blinkbefore;
     }
-    Serial.println(e.blink);
+    // Serial.println(e.emotion.blink);
 }
 
 void drawFPS()

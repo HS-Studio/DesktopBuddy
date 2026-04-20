@@ -22,6 +22,8 @@
 #define MAX_X 16
 #define MAX_Y 16
 
+#define BEZIER_COUNT 8
+
 struct Point
 {
     float x;
@@ -36,19 +38,37 @@ struct BezierLine
     Point c2; // controll 2
 };
 
+struct Emotion
+{
+    float angry;
+    float happy;
+    float blink;
+
+    Point scaleL;
+    Point scaleR;
+
+    Point offsetL;
+    Point offsetR;
+
+    bool flipL;
+    bool flipR;
+
+    float rotationL;
+    float rotationR;
+};
+
 struct EyeState
 {
     Point gaze;
     Point pos;
     Point scale;
+
     float pupilSize;
-    float blink;
-    float squash;
-    float upperLid;
-    float lowerLid;
-    float angry;
-    float happy;
-    bool mirror;
+
+    bool flipX;
+
+    Emotion emotion;
+
     lgfx::rgb888_t color;
     uint8_t brightnes;
 };
@@ -82,173 +102,367 @@ struct EyeRenderCache
     bool dirty = true;
 };
 
-static BezierLine baseShape[4] =
+static BezierLine _baseShape[8] =
+{
+    // tl1
     {
-        // top
-        {
-            {0.10f, 0.90f}, // p1
-            {0.90f, 0.90f}, // p2
-            {0.20f, 1.00f}, // c1
-            {0.80f, 1.00f}, // c2
-        },
-        // right
-        {
-            {0.90f, 0.90f}, // p1
-            {0.90f, 0.10f}, // p2
-            {1.00f, 0.80f}, // c1
-            {1.00f, 0.20f}, // c2
-        },
-        // bottom
-        {
-            {0.90f, 0.10f}, // p1
-            {0.10f, 0.10f}, // p2
-            {0.80f, 0.00f}, // c1
-            {0.20f, 0.00f}, // c2
-        },
-        // left
-        {
-            {0.10f, 0.10f}, // p1
-            {0.10f, 0.90f}, // p2
-            {0.00f, 0.20f}, // c1
-            {0.00f, 0.80f}, // c2
-        }};
-
-static BezierLine blinkShape[4] =
+        {0.00f, 0.75f}, // p1
+        {0.25f, 1.00f}, // p2
+        {0.00f, 0.85f}, // c1
+        {0.15f, 1.00f}, // c2
+    },
+    // tl2
     {
-        // top
-        {
-            {-0.10f, 0.29f}, // p1
-            {1.10f, 0.29f},  // p2
-            {-0.00f, 0.24f}, // c1
-            {1.00f, 0.24f},  // c2
-        },
-        // right
-        {
-            {1.10f, 0.29f}, // p1
-            {1.10f, 0.20f}, // p2
-            {1.19f, 0.33f}, // c1
-            {1.20f, 0.20f}, // c2
-        },
-        // bottom
-        {
-            {1.10f, 0.20f},  // p1
-            {-0.10f, 0.20f}, // p2
-            {1.00f, 0.20f},  // c1
-            {0.00f, 0.20f},  // c2
-        },
-        // left
-        {
-            {-0.10f, 0.20f}, // p1
-            {-0.10f, 0.29f}, // p2
-            {-0.20f, 0.20f}, // c1
-            {-0.19f, 0.33f}, // c2
-        },
+        {0.25f, 1.00f}, // p1
+        {0.75f, 1.00f}, // p2
+        {0.35f, 1.00f}, // c1
+        {0.65f, 1.00f}, // c2
+    },
+    // tr1
+    {
+        {0.75f, 1.00f}, // p1
+        {1.00f, 0.75f}, // p2
+        {0.85f, 1.00f}, // c1
+        {1.00f, 0.85f}, // c2
+    },
+    // tr2
+    {
+        {1.00f, 0.75f}, // p1
+        {1.00f, 0.25f}, // p2
+        {1.00f, 0.65f}, // c1
+        {1.00f, 0.35f}, // c2
+    },
+    // br1
+    {
+        {1.00f, 0.25f}, // p1
+        {0.75f, 0.00f}, // p2
+        {1.00f, 0.15f}, // c1
+        {0.85f, 0.00f}, // c2
+    },
+    // br2
+    {
+        {0.75f, 0.00f}, // p1
+        {0.25f, 0.00f}, // p2
+        {0.65f, 0.00f}, // c1
+        {0.35f, 0.00f}, // c2
+    },
+    // bl1
+    {
+        {0.25f, 0.00f}, // p1
+        {0.00f, 0.25f}, // p2
+        {0.15f, 0.00f}, // c1
+        {0.00f, 0.15f}, // c2
+    },
+    // bl2
+    {
+        {0.00f, 0.25f}, // p1
+        {0.00f, 0.75f}, // p2
+        {0.00f, 0.35f}, // c1
+        {0.00f, 0.65f}, // c2
+    },
 };
 
-static BezierLine angryShape[4] =
+static BezierLine _blinkShape[8] =
+{
+    // tl1
     {
-        // top
-        {
-            {0.10f, 0.65f}, // p1
-            {0.90f, 0.45f}, // p2
-            {0.20f, 0.60f}, // c1
-            {0.70f, 0.45f}, // c2
-        },
-        // right
-        {
-            {0.90f, 0.45f}, // p1
-            {0.90f, 0.25f}, // p2
-            {0.93f, 0.39f}, // c1
-            {0.93f, 0.30f}, // c2
-        },
-        // bottom
-        {
-            {0.90f, 0.25f}, // p1
-            {0.10f, 0.25f}, // p2
-            {0.85f, 0.15f}, // c1
-            {0.17f, 0.18f}, // c2
-        },
-        // left
-        {
-            {0.10f, 0.25f}, // p1
-            {0.10f, 0.65f}, // p2
-            {0.03f, 0.32f}, // c1
-            {0.05f, 0.55f}, // c2
-        },
+        {0.03f, 0.53f}, // p1
+        {0.25f, 0.52f}, // p2
+        {0.05f, 0.53f}, // c1
+        {0.15f, 0.52f}, // c2
+    },
+    // tl2
+    {
+        {0.25f, 0.52f}, // p1
+        {0.75f, 0.52f}, // p2
+        {0.35f, 0.52f}, // c1
+        {0.65f, 0.52f}, // c2
+    },
+    // tr1
+    {
+        {0.75f, 0.52f}, // p1
+        {0.97f, 0.53f}, // p2
+        {0.85f, 0.52f}, // c1
+        {0.95f, 0.53f}, // c2
+    },
+    // tr2
+    {
+        {0.97f, 0.53f}, // p1
+        {0.97f, 0.47f}, // p2
+        {1.00f, 0.53f}, // c1
+        {1.00f, 0.47f}, // c2
+    },
+    // br1
+    {
+        {0.97f, 0.47f}, // p1
+        {0.75f, 0.48f}, // p2
+        {0.95f, 0.47f}, // c1
+        {0.85f, 0.48f}, // c2
+    },
+    // br2
+    {
+        {0.75f, 0.48f}, // p1
+        {0.25f, 0.48f}, // p2
+        {0.65f, 0.48f}, // c1
+        {0.35f, 0.48f}, // c2
+    },
+    // bl1
+    {
+        {0.25f, 0.48f}, // p1
+        {0.03f, 0.47f}, // p2
+        {0.15f, 0.48f}, // c1
+        {0.05f, 0.47f}, // c2
+    },
+    // bl2
+    {
+        {0.03f, 0.47f}, // p1
+        {0.03f, 0.53f}, // p2
+        {0.00f, 0.47f}, // c1
+        {-0.00f, 0.53f}, // c2
+    },
 };
 
-static BezierLine happyShape[4] =
+static BezierLine _happyShape[8] =
+{
+    // tl1
     {
-        // top
-        {
-            {0.10f, 0.70f}, // p1
-            {0.90f, 0.70f}, // p2
-            {0.20f, 0.80f}, // c1
-            {0.80f, 0.80f}, // c2
-        },
-        // right
-        {
-            {0.90f, 0.70f}, // p1
-            {0.90f, 0.50f}, // p2
-            {0.95f, 0.65f}, // c1
-            {0.95f, 0.45f}, // c2
-        },
-        // bottom
-        {
-            {0.90f, 0.50f}, // p1
-            {0.10f, 0.50f}, // p2
-            {0.80f, 0.60f}, // c1
-            {0.20f, 0.60f}, // c2
-        },
-        // left
-        {
-            {0.10f, 0.50f}, // p1
-            {0.10f, 0.70f}, // p2
-            {0.05f, 0.45f}, // c1
-            {0.05f, 0.65f}, // c2
-        },
+        {0.00f, 0.75f}, // p1
+        {0.25f, 1.00f}, // p2
+        {0.00f, 0.85f}, // c1
+        {0.15f, 1.00f}, // c2
+    },
+    // tl2
+    {
+        {0.25f, 1.00f}, // p1
+        {0.75f, 1.00f}, // p2
+        {0.35f, 1.00f}, // c1
+        {0.65f, 1.00f}, // c2
+    },
+    // tr1
+    {
+        {0.75f, 1.00f}, // p1
+        {1.00f, 0.75f}, // p2
+        {0.85f, 1.00f}, // c1
+        {1.00f, 0.85f}, // c2
+    },
+    // tr2
+    {
+        {1.00f, 0.75f}, // p1
+        {0.98f, 0.70f}, // p2
+        {1.00f, 0.70f}, // c1
+        {1.00f, 0.70f}, // c2
+    },
+    // br1
+    {
+        {0.98f, 0.70f}, // p1
+        {0.60f, 0.70f}, // p2
+        {0.88f, 0.70f}, // c1
+        {0.70f, 0.70f}, // c2
+    },
+    // br2
+    {
+        {0.60f, 0.70f}, // p1
+        {0.40f, 0.70f}, // p2
+        {0.50f, 0.70f}, // c1
+        {0.50f, 0.70f}, // c2
+    },
+    // bl1
+    {
+        {0.40f, 0.70f}, // p1
+        {0.02f, 0.70f}, // p2
+        {0.30f, 0.70f}, // c1
+        {0.12f, 0.70f}, // c2
+    },
+    // bl2
+    {
+        {0.02f, 0.70f}, // p1
+        {0.00f, 0.75f}, // p2
+        {0.00f, 0.70f}, // c1
+        {0.00f, 0.70f}, // c2
+    },
 };
 
-BezierLine deltaBlink[4];
-BezierLine deltaAngry[4];
-BezierLine deltaHappy[4];
+static BezierLine _angryShape[8] =
+{
+    // tl1
+    {
+        {0.00f, 0.52f}, // p1
+        {0.30f, 0.47f}, // p2
+        {0.10f, 0.50f}, // c1
+        {0.18f, 0.48f}, // c2
+    },
+    // tl2
+    {
+        {0.30f, 0.47f}, // p1
+        {0.70f, 0.41f}, // p2
+        {0.46f, 0.44f}, // c1
+        {0.54f, 0.43f}, // c2
+    },
+    // tr1
+    {
+        {0.70f, 0.41f}, // p1
+        {1.00f, 0.40f}, // p2
+        {0.82f, 0.40f}, // c1
+        {0.90f, 0.41f}, // c2
+    },
+    // tr2
+    {
+        {1.00f, 0.40f}, // p1
+        {1.00f, 0.25f}, // p2
+        {1.00f, 0.30f}, // c1
+        {1.00f, 0.35f}, // c2
+    },
+    // br1
+    {
+        {1.00f, 0.25f}, // p1
+        {0.75f, 0.00f}, // p2
+        {1.00f, 0.15f}, // c1
+        {0.85f, 0.00f}, // c2
+    },
+    // br2
+    {
+        {0.75f, 0.00f}, // p1
+        {0.25f, 0.00f}, // p2
+        {0.65f, 0.00f}, // c1
+        {0.35f, 0.00f}, // c2
+    },
+    // bl1
+    {
+        {0.25f, 0.00f}, // p1
+        {0.00f, 0.25f}, // p2
+        {0.15f, 0.00f}, // c1
+        {0.00f, 0.15f}, // c2
+    },
+    // bl2
+    {
+        {0.00f, 0.25f}, // p1
+        {0.00f, 0.52f}, // p2
+        {0.00f, 0.35f}, // c1
+        {0.00f, 0.42f}, // c2
+    },
+};
+
+static BezierLine _sad_downShape[8] =
+{
+    // tl1
+    {
+        {0.00f, 0.28f}, // p1
+        {0.30f, 0.34f}, // p2
+        {0.00f, 0.30f}, // c1
+        {0.18f, 0.32f}, // c2
+    },
+    // tl2
+    {
+        {0.30f, 0.34f}, // p1
+        {0.70f, 0.43f}, // p2
+        {0.46f, 0.37f}, // c1
+        {0.54f, 0.39f}, // c2
+    },
+    // tr1
+    {
+        {0.70f, 0.43f}, // p1
+        {1.00f, 0.50f}, // p2
+        {0.82f, 0.46f}, // c1
+        {1.00f, 0.52f}, // c2
+    },
+    // tr2
+    {
+        {1.00f, 0.50f}, // p1
+        {1.00f, 0.25f}, // p2
+        {1.00f, 0.40f}, // c1
+        {1.00f, 0.35f}, // c2
+    },
+    // br1
+    {
+        {1.00f, 0.25f}, // p1
+        {0.75f, 0.00f}, // p2
+        {1.00f, 0.15f}, // c1
+        {0.85f, 0.00f}, // c2
+    },
+    // br2
+    {
+        {0.75f, 0.00f}, // p1
+        {0.25f, 0.00f}, // p2
+        {0.65f, 0.00f}, // c1
+        {0.35f, 0.00f}, // c2
+    },
+    // bl1
+    {
+        {0.25f, 0.00f}, // p1
+        {0.00f, 0.25f}, // p2
+        {0.15f, 0.00f}, // c1
+        {0.00f, 0.15f}, // c2
+    },
+    // bl2
+    {
+        {0.00f, 0.25f}, // p1
+        {0.00f, 0.28f}, // p2
+        {0.00f, 0.26f}, // c1
+        {0.00f, 0.27f}, // c2
+    },
+};
 
 bool buttonUp = false;
 
 EyeRenderCache cacheL;
 EyeRenderCache cacheR;
 
+Emotion neutral{
+    .angry = 0,
+    .happy = 0,
+    .blink = 0,
+
+    .scaleL{0.65f, 0.65f},
+    .scaleR{0.65f, 0.7f},
+
+    .offsetL{0,0},
+    .offsetR{0,0},
+
+    .flipL = false,
+    .flipR = false,
+
+    .rotationL = 0,
+    .rotationR = 0
+};
+
+Emotion angry{
+    .angry = 1.0f,
+    .scaleL = {0.65f, 0.65f},
+    .scaleR = {0.60f, 0.60f},
+    .flipR = true
+};
+
 EyeState default_state =
-    {
+    {   
         {0.0f, 0.0f},   //  gaze        -1 .. 1
-        {0.0, 0.0},     //  offset      -1 .. 1
+        {0.0, 0.0},   //  position      -1 .. 1
         {0.75f, 0.75f}, //  scale        0.1 .. 1.0
-        0.5f,           //  pupilSize   0.5 .. 1.2
-        0.0f,           //  blink       0..1
-        0.0f,           //  squash      0.8 .. 1.2
-        0.0f,           //  upperLid    0..1
-        0.0f,           //  lowerLid    0..1
-        0.0f,           //  agry
-        0.0f,           //  happy
+
+        0.5f, //  pupilSize   0.5 .. 1.2
+
         false,
-        {0, 255, 0},    //  color
-        255};
+
+        neutral,
+
+        {0, 255, 0}, //  color
+        255          // brighness
+};
 
 EyeState start_state =
     {
         {0.0f, 0.0f}, //  gaze        -1 .. 1
-        {0.0, 0.0},   //  offset      -1 .. 1
+        {0.0, 0.0},   //  position      -1 .. 1
         {1.0f, 0.1f}, //  scale        0.1 .. 1.0
-        0.5f,         //  pupilSize   0.5 .. 1.2
-        0.0f,         //  blink       0..1
-        0.0f,         //  squash      0.8 .. 1.2
-        0.0f,         //  upperLid    0..1
-        0.0f,         //  lowerLid    0..1
-        0.0f,         //  agry
-        0.0f,         //  happy
+        
+        0.5f, //  pupilSize   0.5 .. 1.2
+
         false,
-        {255, 0, 0},  //  color
-        0};
+
+        neutral,
+
+        {0, 0, 0}, //  color
+        0                // brighness
+};
 
 EyePair eyePair;
 
@@ -281,36 +495,33 @@ const int PWM_RESOLUTION = 8; // 0-255
 
 // Vector Eye
 void sampleBezier(const BezierLine &b, std::vector<Point> &pts, uint8_t steps);
-void buildShape(BezierLine *shape, int count, int steps, std::vector<Point> &pts);
+void buildShape(BezierLine *shape, int steps, std::vector<Point> &pts);
 
 // Draw Funktions
-// void drawEye(LGFX_Sprite& eyeSpr, EyeState& e, uint16_t screen_x, uint16_t screen_y);
-void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache, uint16_t screen_x, uint16_t screen_y, bool mirror = false);
+void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache, uint16_t screen_x, uint16_t screen_y);
 void drawFace(EyePair &pair, EyeState &eL, EyeState &eR, int screen_x, int screen_y); // X ↕ Y ↔
 
 float lerp(float a, float b, float t = 0.1f);
-Point lerp(Point &a, Point &b, float t = 0.1f);
 Point lerp(const Point &a, const Point &b, float t = 0.1f);
 uint8_t lerp(uint8_t a, uint8_t b, float t = 0.1f);
 BezierLine lerp(const BezierLine &a, const BezierLine &b, float t = 0.1f);
 lgfx::rgb888_t lerpColor(const lgfx::rgb888_t &a, const lgfx::rgb888_t &b, float t = 0.1f);
+Emotion lerpEmotion(const Emotion& a, const Emotion& b, float t);
 
 void buildGradient(lgfx::rgb888_t *grad, const lgfx::rgb888_t targetColor);
 bool updateColor(lgfx::rgb888_t &currentColor, lgfx::rgb888_t targetColor, float speed = 0.1f);
 void updateEyeState(EyeState &eye, EyeState &target, float speed = 0.1f);
+void updateShapeCache(EyeRenderCache &cache, EyeState &e);
 
 bool hasChanged(const Point &a, const Point &b, float eps = 0.001f);
-void updateShapeCache(EyeRenderCache &cache, EyeState &e, bool mirror = false);
 void buildEdgeTable(EyeRenderCache &cache);
 void fillPolygonET(EyeRenderCache &cache, LGFX_Sprite &spr, uint16_t color);
 
-void transformShape(BezierLine* shape, const EyeState& e, bool mirror = false);
-void toScreenSpace(std::vector<Point>& pts, const EyeState& e);
+void transformShape(BezierLine *shape, const EyeState &e);
+void toScreenSpace(std::vector<Point> &pts, const EyeState &e);
 
-void computeDelta(BezierLine* delta, const BezierLine* base, const BezierLine* target);
-void copyShape(BezierLine* dst, const BezierLine* src);
-void applyEmotion(BezierLine* shape, const BezierLine* delta, float t);
-void buildFinalShape(BezierLine* out, const EyeState& e);
+void applyEmotion(const Emotion& emo, EyeState& left, EyeState& right);
+void blendShapes(BezierLine *out, const EyeState &e);
 
 void blink(EyeState &e, EyeState &target, float blink);
 
