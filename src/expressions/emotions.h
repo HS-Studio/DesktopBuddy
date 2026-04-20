@@ -1,7 +1,7 @@
 #pragma once
 
 #include "shapes.h"
-#include "../structs.h"
+#include "../data/structs.h"
 
 extern const Emotion emo_blink_low;
 extern const Emotion emo_neutral;

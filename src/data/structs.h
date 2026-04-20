@@ -2,9 +2,9 @@
 
 #include <vector>
 #include <stdint.h>
-//#include <Arduino.h>
+#include "../LGFX_SPI_ST7789.h"
 
-#include "LGFX_SPI_ST7789.h"
+constexpr uint8_t NUM_EMOTIONS = 4;
 
 struct Point
 {
@@ -14,13 +14,11 @@ struct Point
 
 struct BezierLine
 {
-    Point ps; // point start
-    Point pe; // point end
-    Point c1; // controll 1
-    Point c2; // controll 2
+    Point ps;
+    Point pe;
+    Point c1;
+    Point c2;
 };
-
-#define NUM_EMOTIONS 4
 
 struct EmotionLayer
 {
@@ -66,7 +64,6 @@ struct EyePair
 {
     EyeState current;
     EyeState target;
-
     float convergence;
 };
 
@@ -80,14 +77,11 @@ struct Edge
 struct EyeRenderCache
 {
     std::vector<Point> pts;
-
     std::vector<std::vector<Edge>> ET;
     std::vector<Edge> AET;
 
     int minY, maxY;
 
     EyeState lastState;
-
     bool dirty = true;
 };
-

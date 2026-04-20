@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../structs.h"
+#include "../data/structs.h"
 
 extern const BezierLine baseShape[8];
 extern const BezierLine angryShape[8];
