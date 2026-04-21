@@ -1,5 +1,3 @@
-//EyeRenderer.h
-
 #pragma once
 
 #include <vector>

@@ -1,5 +1,6 @@
-// EyeRenderer.cpp
-
+#include <vector>
+#include <stdint.h>
+#include <LovyanGFX.hpp>
 #include "EyeRenderer.h"
 
 EyeRenderer::EyeRenderer(LGFX &tft)
@@ -276,7 +277,7 @@ void EyeRenderer::morphShape(BezierLine *out, const BezierLine *base,
 
 void EyeRenderer::blendShapes(BezierLine *out, const EyeState &e)
 {
-    memcpy(out, baseShape, sizeof(BezierLine) * BEZIER_COUNT);
+    memcpy(out, shape_base, sizeof(BezierLine) * BEZIER_COUNT);
 
     for (int i = 0; i < e.emotion.count; i++)
     {

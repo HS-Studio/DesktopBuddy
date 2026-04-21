@@ -1,0 +1,10 @@
+- Open shapes.blend with Blender 5.0+
+- Run the Script once.
+- Duplicate the base Object and rename it.
+- Modify the shape in Edit mode.
+- Export Shapes using the Sidebar Panel
+---
+- Avoid names with periods, spaces, or special characters.
+- Do not scale in Object mode.
+- Do not move points above 1.0 or below 0 (this is possible, but should be avoided).
+- Do not subdivide, add, or remove segments.

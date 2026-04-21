@@ -1,5 +1,3 @@
-// main.cpp
-
 #include "render/EyeRenderer.h"
 
 static LGFX tft;
@@ -103,19 +101,28 @@ void switchEmotion(EyeRenderer &eyes)
         eyes.setEmotion(emo_blink_high);
         break;
     case 3:
-        eyes.setEmotion(emo_sad_down);
-        break;
-    case 4:
-        eyes.setEmotion(emo_sad_up);
-        break;
-    case 5:
         eyes.setEmotion(emo_happy);
         break;
-    case 6:
+    case 4:
         eyes.setEmotion(emo_glee);
         break;
-    case 7:
+    case 5:
         eyes.setEmotion(emo_angry);
+        break;
+    case 6:
+        eyes.setEmotion(emo_sad_down);
+        break;
+    case 7:
+        eyes.setEmotion(emo_sad_up);
+        break;
+    case 8:
+        eyes.setEmotion(emo_worried);
+        break;
+    case 9:
+        eyes.setEmotion(emo_focused);
+        break;
+    case 10:
+        eyes.setEmotion(emo_annoyed);
         break;
     }
 }

@@ -1,11 +1,13 @@
 #pragma once
-
 #include "../data/structs.h"
 
-extern const BezierLine baseShape[8];
-extern const BezierLine angryShape[8];
-extern const BezierLine happyShape[8];
-extern const BezierLine gleeShape[8];
-extern const BezierLine blinkShape[8];
-extern const BezierLine sad_downShape[8];
-extern const BezierLine sad_upShape[8];
+extern const BezierLine shape_base[8];
+extern const BezierLine shape_angry[8];
+extern const BezierLine shape_happy[8];
+extern const BezierLine shape_glee[8];
+extern const BezierLine shape_blink[8];
+extern const BezierLine shape_sad_down[8];
+extern const BezierLine shape_sad_up[8];
+extern const BezierLine shape_worried[8];
+extern const BezierLine shape_focused[8];
+extern const BezierLine shape_annoyed[8];
