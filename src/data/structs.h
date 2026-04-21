@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "../LGFX_SPI_ST7789.h"
 
-constexpr uint8_t NUM_EMOTIONS = 4;
+constexpr uint8_t NUM_EMOTIONS = 8;
 
 struct Point
 {
@@ -42,6 +42,9 @@ struct Emotion
 
     float rotationL;
     float rotationR;
+
+    bool hasColorOverride;
+    lgfx::rgb888_t overrideColor;
 };
 
 struct EyeState
@@ -49,6 +52,7 @@ struct EyeState
     Point gaze;
     Point pos;
     Point scale;
+    float rotation;
 
     float pupilSize;
 

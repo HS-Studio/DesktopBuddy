@@ -1,18 +1,5 @@
 #include "emotions.h"
 
-const Emotion emo_blink_low{
-    .layers = {
-        { blinkShape, 1.0f }
-    },
-    .count = 1,
-
-    .scaleL{0.65f, 0.65f},
-    .scaleR{0.65f, 0.65f},
-
-    .offsetL{0,0.5f},
-    .offsetR{0,0.5f}
-};
-
 const Emotion emo_neutral{
     .layers = {},
     .count = 0,
@@ -30,17 +17,30 @@ const Emotion emo_neutral{
     .rotationR = 0
 };
 
-const Emotion emo_angry{
+const Emotion emo_blink_low{
     .layers = {
-        { angryShape, 1.0f }
+        { blinkShape, 1.0f }
     },
     .count = 1,
 
-    .scaleL = {0.65f, 0.65f},
-    .scaleR = {0.60f, 0.60f},
+    .scaleL{0.65f, 0.65f},
+    .scaleR{0.65f, 0.65f},
 
-    .flipL = false,
-    .flipR = true
+    .offsetL{0,0.5f},
+    .offsetR{0,0.5f}
+};
+
+const Emotion emo_blink_high{
+    .layers = {
+        { blinkShape, 1.0f }
+    },
+    .count = 1,
+
+    .scaleL{0.65f, 0.65f},
+    .scaleR{0.65f, 0.65f},
+
+    .offsetL{0,-0.5f},
+    .offsetR{0,-0.5f}
 };
 
 const Emotion emo_happy{
@@ -53,3 +53,63 @@ const Emotion emo_happy{
     .scaleR{0.65f, 0.65f}
 };
 
+const Emotion emo_glee{
+    .layers = {
+        { gleeShape, 1.0f }
+    },
+    .count = 1,
+
+    .scaleL{0.65f, 0.65f},
+    .scaleR{0.65f, 0.65f},
+
+    .rotationL = 0.08f, // radians
+    .rotationR = -0.08f
+};
+
+const Emotion emo_angry{
+    .layers = {
+        { angryShape, 1.0f }
+    },
+    .count = 1,
+
+    .scaleL = {0.65f, 0.65f},
+    .scaleR = {0.60f, 0.60f},
+
+    .flipL = false,
+    .flipR = true,
+
+    .hasColorOverride = true,
+    .overrideColor = {255,0,0}
+};
+
+const Emotion emo_sad_down{
+    .layers = {
+        { sad_downShape, 1.0f }
+    },
+    .count = 1,
+
+    .scaleL = {0.65f, 0.65f},
+    .scaleR = {0.60f, 0.60f},
+
+    .offsetL{0,0.5f},
+    .offsetR{0,0.5f},
+
+    .flipL = false,
+    .flipR = true
+};
+
+const Emotion emo_sad_up{
+    .layers = {
+        { sad_upShape, 1.0f }
+    },
+    .count = 1,
+
+    .scaleL = {0.65f, 0.65f},
+    .scaleR = {0.60f, 0.60f},
+
+    .offsetL{0,-0.5f},
+    .offsetR{0,-0.5f},
+
+    .flipL = false,
+    .flipR = true
+};

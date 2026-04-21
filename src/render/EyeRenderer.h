@@ -22,6 +22,15 @@ public:
     void begin();
     void drawFace(int screen_x, int screen_y);
 
+    void lookAt(float x, float y);
+    void becomeAngry();
+    void becomeHappy();
+    void idle();
+
+    void setEmotion(const Emotion& emo);
+    void setThemeColor(lgfx::rgb888_t color);
+    
+
     int bezierRes = 5;
 
 private:
@@ -38,6 +47,9 @@ private:
     EyePair eyePair;
     EyeState eyeL;
     EyeState eyeR;
+
+    lgfx::rgb888_t default_color;
+    lgfx::rgb888_t themeColor;
 
     // Cache
     EyeRenderCache _cacheL;
@@ -78,8 +90,6 @@ private:
     bool emotionChanged(const Emotion &a, const Emotion &b);
 
     // Draw
-    void updateFace(EyePair &pair, EyeState &eL, EyeState &eR, int screen_x, int screen_y);
-
     void applyEmotion(const Emotion &emo, EyeState &left, EyeState &right);
     void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache,
                  uint16_t screen_x, uint16_t screen_y);

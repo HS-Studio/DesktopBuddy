@@ -1,4 +1,4 @@
-//EyeRenderer.cpp
+// EyeRenderer.cpp
 
 #include "EyeRenderer.h"
 
@@ -13,6 +13,7 @@ EyeRenderer::EyeRenderer(LGFX &tft)
         {0.0f, 0.0f},   // gaze
         {0.0f, 0.0f},   // pos
         {0.75f, 0.75f}, // scale
+        0.0f,           // rotation
         0.5f,           // pupilSize
         false,          // flipX
         emo_neutral,    // emotion
@@ -21,18 +22,19 @@ EyeRenderer::EyeRenderer(LGFX &tft)
     };
 
     _startState = {
-        {0.0f, 0.0f},   // gaze
-        {0.0f, 0.0f},   // pos
-        {1.0f, 0.1f},   // scale
-        0.5f,           // pupilSize
-        false,          // flipX
-        emo_neutral,    // emotion
-        {0, 0, 0},      // color
-        0               // brightnes
+        {0.0f, 0.0f}, // gaze
+        {0.0f, 0.0f}, // pos
+        {1.0f, 0.1f}, // scale
+        0.0f,         // rotation
+        0.5f,         // pupilSize
+        false,        // flipX
+        emo_neutral,  // emotion
+        {0, 0, 0},    // color
+        0             // brightnes
     };
 
-    eyePair.current     = _startState;
-    eyePair.target      = _defaultState;
+    eyePair.current = _startState;
+    eyePair.target = _defaultState;
     eyePair.convergence = 0.6f;
 }
 
@@ -54,37 +56,70 @@ void EyeRenderer::begin()
     _cacheL.dirty = true;
     _cacheR.dirty = true;
 
-    buildGradient(pupilGradient, {0, 255, 0});
+    setThemeColor({0, 255, 0});
+    buildGradient(pupilGradient, eyePair.target.color);
     _radialGradient.fillSprite(pupilGradient[3]);
     _radialGradient.fillGradientRect(0, 0, MAX_W, MAX_H, pupilColors);
 }
 
-// ─── Public ──────────────────────────────────────────────────────────────────
+// --- Public ------------------------------------------------------------------
 
 void EyeRenderer::drawFace(int screen_x, int screen_y)
 {
     eyeL = eyePair.current;
     eyeR = eyePair.current;
 
-    updateFace(eyePair, eyeL, eyeR, screen_x, screen_y);
+    int16_t x = screen_x + eyeL.gaze.x * MAX_X;
+    int16_t y = screen_y + eyeR.gaze.y * MAX_Y;
+
+    applyEmotion(eyePair.current.emotion, eyeL, eyeR);
+
+    eyeL.pos.x += eyePair.convergence;
+    eyeR.pos.x -= eyePair.convergence;
+
+    drawEye(_eyeLSprite, eyeL, _cacheL, x, y);
+    drawEye(_eyeRSprite, eyeR, _cacheR, x + MAX_W, y);
+
     updateEyeState(eyePair.current, eyePair.target, 0.20f);
 }
 
-// ─── Private – Draw ──────────────────────────────────────────────────────────
-void EyeRenderer::updateFace(EyePair &pair, EyeState &eL, EyeState &eR,
-                             int screen_x, int screen_y)
+void EyeRenderer::lookAt(float x, float y)
 {
-    int16_t x = screen_x + eL.gaze.x * MAX_X;
-    int16_t y = screen_y + eL.gaze.y * MAX_Y;
-
-    applyEmotion(pair.current.emotion, eL, eR);
-
-    eL.pos.x += pair.convergence;
-    eR.pos.x -= pair.convergence;
-
-    drawEye(_eyeLSprite, eL, _cacheL, x, y);
-    drawEye(_eyeRSprite, eR, _cacheR, x + MAX_W, y);
+    eyePair.target.gaze = {x, y};
 }
+
+void EyeRenderer::becomeAngry()
+{
+    setEmotion(emo_angry);
+}
+
+void EyeRenderer::becomeHappy()
+{
+    setEmotion(emo_happy);
+}
+
+void EyeRenderer::idle()
+{
+    setEmotion(emo_neutral);
+}
+
+void EyeRenderer::setEmotion(const Emotion& emo)
+{
+    eyePair.target.emotion = emo;
+
+    if (emo.hasColorOverride)
+        eyePair.target.color = emo.overrideColor;
+    else
+        eyePair.target.color = themeColor;
+}
+
+void EyeRenderer::setThemeColor(lgfx::rgb888_t color)
+{
+    themeColor = color;
+    eyePair.target.color = themeColor;
+}
+
+// --- Private - Draw ----------------------------------------------------------
 
 void EyeRenderer::drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache,
                           uint16_t screen_x, uint16_t screen_y)
@@ -107,15 +142,20 @@ void EyeRenderer::drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cach
     eyeSpr.pushSprite(screen_x, screen_y);
 }
 
-// ─── Private – Cache ─────────────────────────────────────────────────────────
+// --- Private – Cache ---------------------------------------------------------
 
 void EyeRenderer::updateShapeCache(EyeRenderCache &cache, EyeState &e)
 {
-    if (!cache.dirty &&
-        !hasChanged(e.scale, cache.lastState.scale) &&
-        !hasChanged(e.pos, cache.lastState.pos) &&
-        !emotionChanged(e.emotion, cache.lastState.emotion) &&
-        e.flipX == cache.lastState.flipX)
+    bool changed = cache.dirty ||
+                   hasChanged(e.gaze, cache.lastState.gaze) ||
+                   hasChanged(e.pos, cache.lastState.pos) ||
+                   hasChanged(e.scale, cache.lastState.scale) ||
+                   abs(e.rotation - cache.lastState.rotation) < 0.001f ||
+                   abs(e.pupilSize - cache.lastState.pupilSize) < 0.001f ||
+                   emotionChanged(e.emotion, cache.lastState.emotion) ||
+                   e.flipX != cache.lastState.flipX;
+
+    if (!changed)
         return;
 
     BezierLine finalShape[BEZIER_COUNT];
@@ -164,6 +204,9 @@ void EyeRenderer::applyEmotion(const Emotion &emo, EyeState &left, EyeState &rig
     left.pos = emo.offsetL;
     right.pos = emo.offsetR;
 
+    left.rotation = emo.rotationL;
+    right.rotation = emo.rotationR;
+
     left.flipX = emo.flipL;
     right.flipX = emo.flipR;
 
@@ -173,7 +216,7 @@ void EyeRenderer::applyEmotion(const Emotion &emo, EyeState &left, EyeState &rig
 
 bool EyeRenderer::hasChanged(const Point &a, const Point &b, float eps)
 {
-    return fabsf(a.x - b.x) > eps || fabsf(a.y - b.y) > eps;
+    return abs(a.x - b.x) > eps || abs(a.y - b.y) > eps;
 }
 
 bool EyeRenderer::emotionChanged(const Emotion &a, const Emotion &b)
@@ -185,23 +228,35 @@ bool EyeRenderer::emotionChanged(const Emotion &a, const Emotion &b)
     {
         if (a.layers[i].shape != b.layers[i].shape)
             return true;
-        if (fabsf(a.layers[i].weight - b.layers[i].weight) > 0.001f)
+        if (abs(a.layers[i].weight - b.layers[i].weight) > 0.001f)
             return true;
     }
     return false;
 }
 
-// ─── Private – Geometry ──────────────────────────────────────────────────────
+// --- Private – Geometry ------------------------------------------------------
 
 void EyeRenderer::sampleBezier(const BezierLine &b, std::vector<Point> &pts, uint8_t steps)
 {
     for (int i = 0; i <= steps; i++)
     {
         float t = i / (float)steps;
+
         float u = 1.0f - t;
 
-        pts.push_back({u * u * u * b.ps.x + 3 * u * u * t * b.c1.x + 3 * u * t * t * b.c2.x + t * t * t * b.pe.x,
-                       u * u * u * b.ps.y + 3 * u * u * t * b.c1.y + 3 * u * t * t * b.c2.y + t * t * t * b.pe.y});
+        float x =
+            u * u * u * b.ps.x +
+            3 * u * u * t * b.c1.x +
+            3 * u * t * t * b.c2.x +
+            t * t * t * b.pe.x;
+
+        float y =
+            u * u * u * b.ps.y +
+            3 * u * u * t * b.c1.y +
+            3 * u * t * t * b.c2.y +
+            t * t * t * b.pe.y;
+
+        pts.push_back({x, y});
     }
 }
 
@@ -230,24 +285,78 @@ void EyeRenderer::blendShapes(BezierLine *out, const EyeState &e)
     }
 }
 
+/* void EyeRenderer::transformShape(BezierLine *shape, const EyeState &e)
+{
+    float sx = e.scale.x;
+    float sy = e.scale.y;
+
+    float angle = e.rotation; // in radians!
+    float cosA = cosf(angle);
+    float sinA = sinf(angle);
+
+    auto transform = [&](Point &p)
+    {
+        // Center auf (0,0)
+        p.x -= 0.5f;
+        p.y -= 0.5f;
+
+        // Scale
+        p.x *= sx;
+        p.y *= sy;
+
+        // Rotation
+        float x = p.x * cosA - p.y * sinA;
+        float y = p.x * sinA + p.y * cosA;
+
+        p.x = x;
+        p.y = y;
+
+        // flip
+        if (e.flipX)
+            p.x = -p.x;
+
+        // zurück in 0..1
+        p.x += 0.5f;
+        p.y += 0.5f;
+    };
+
+    for (int i = 0; i < BEZIER_COUNT; i++)
+    {
+        transform(shape[i].ps);
+        transform(shape[i].pe);
+        transform(shape[i].c1);
+        transform(shape[i].c2);
+    }
+} */
+
 void EyeRenderer::transformShape(BezierLine *shape, const EyeState &e)
 {
     float sx = e.scale.x;
     float sy = e.scale.y;
 
+    float angle = e.rotation;
+    float cosA = cosf(angle);
+    float sinA = sinf(angle);
+
+    float fx = e.flipX ? -1.0f : 1.0f;
+
+    // --- Matrix ---
+    float m00 =  cosA * sx * fx;
+    float m01 = -sinA * sy;
+    float m10 =  sinA * sx * fx;
+    float m11 =  cosA * sy;
+
+    // --- Offset (zentriert um 0.5 / 0.5) ---
+    float tx = 0.5f - (m00 * 0.5f + m01 * 0.5f);
+    float ty = 0.5f - (m10 * 0.5f + m11 * 0.5f);
+
     auto transform = [&](Point &p)
     {
-        p.x -= 0.5f;
-        p.y -= 0.5f;
+        float x = p.x;
+        float y = p.y;
 
-        p.x *= sx;
-        p.y *= sy;
-
-        if (e.flipX)
-            p.x = -p.x;
-
-        p.x += 0.5f;
-        p.y += 0.5f;
+        p.x = m00 * x + m01 * y + tx;
+        p.y = m10 * x + m11 * y + ty;
     };
 
     for (int i = 0; i < BEZIER_COUNT; i++)
@@ -276,7 +385,7 @@ void EyeRenderer::toScreenSpace(std::vector<Point> &pts, const EyeState &e)
     }
 }
 
-// ─── Private – Rasterizer ────────────────────────────────────────────────────
+// --- Private – Rasterizer ----------------------------------------------------
 
 void EyeRenderer::buildEdgeTable(EyeRenderCache &cache)
 {
@@ -292,7 +401,8 @@ void EyeRenderer::buildEdgeTable(EyeRenderCache &cache)
         Point p1 = cache.pts[i];
         Point p2 = cache.pts[(i + 1) % n];
 
-        if (fabsf(p1.y - p2.y) < 0.5f)
+        //if ((int)p1.y == (int)p2.y)
+        if (abs(p1.y - p2.y) < 0.01f)
             continue; // horizontal überspringen
 
         if (p1.y > p2.y)
@@ -353,7 +463,7 @@ void EyeRenderer::fillPolygonET(EyeRenderCache &cache, LGFX_Sprite &spr, uint16_
     }
 }
 
-// ─── Private – Color ─────────────────────────────────────────────────────────
+// --- Private – Color ---------------------------------------------------------
 
 bool EyeRenderer::updateColor(lgfx::rgb888_t &current, lgfx::rgb888_t target, float speed)
 {
@@ -381,7 +491,7 @@ bool EyeRenderer::updateColor(lgfx::rgb888_t &current, lgfx::rgb888_t target, fl
     return changed;
 }
 
-// ─── Private – Lerp ──────────────────────────────────────────────────────────
+// --- Private – Lerp ----------------------------------------------------------
 
 float EyeRenderer::lerp(float a, float b, float t)
 {
