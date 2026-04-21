@@ -52,15 +52,18 @@ void EyeRenderer::begin()
 
     _radialGradient.setColorDepth(16);
     _radialGradient.createSprite(MAX_W, MAX_H);
-    _radialGradient.fillGradientRect(0, 0, MAX_W, MAX_H, pupilColors);
+    fillGradient();
+    //_radialGradient.fillGradientRect(0, 0, MAX_W, MAX_H, pupilColors);
 
     _cacheL.dirty = true;
     _cacheR.dirty = true;
 
     setThemeColor({0, 255, 0});
     buildGradient(pupilGradient, eyePair.target.color);
-    _radialGradient.fillSprite(pupilGradient[3]);
-    _radialGradient.fillGradientRect(0, 0, MAX_W, MAX_H, pupilColors);
+
+    _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
+    fillGradient();
+    //_radialGradient.fillGradientRect(0, 0, MAX_W, MAX_H, pupilColors);
 }
 
 // --- Public ------------------------------------------------------------------
@@ -104,7 +107,7 @@ void EyeRenderer::idle()
     setEmotion(emo_neutral);
 }
 
-void EyeRenderer::setEmotion(const Emotion& emo)
+void EyeRenderer::setEmotion(const Emotion &emo)
 {
     eyePair.target.emotion = emo;
 
@@ -114,7 +117,7 @@ void EyeRenderer::setEmotion(const Emotion& emo)
         eyePair.target.color = themeColor;
 }
 
-void EyeRenderer::setThemeColor(lgfx::rgb888_t color)
+void EyeRenderer::setThemeColor(Color color)
 {
     themeColor = color;
     eyePair.target.color = themeColor;
@@ -125,7 +128,8 @@ void EyeRenderer::setThemeColor(lgfx::rgb888_t color)
 void EyeRenderer::drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache,
                           uint16_t screen_x, uint16_t screen_y)
 {
-    eyeSpr.fillSprite(pupilGradient[3]);
+
+    eyeSpr.fillSprite(toLGFX(pupilGradient[3]));
     _maskSprite.fillSprite(TFT_BLACK);
 
     updateShapeCache(cache, e);
@@ -184,12 +188,13 @@ void EyeRenderer::updateEyeState(EyeState &eye, EyeState &target, float speed)
     if (updateColor(eye.color, target.color, speed))
     {
         buildGradient(pupilGradient, eye.color);
-        _radialGradient.fillSprite(pupilGradient[3]);
-        _radialGradient.fillGradientRect(0, 0, MAX_W, MAX_H, pupilColors);
+        _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
+        fillGradient();
+        //_radialGradient.fillGradientRect(0, 0, MAX_W, MAX_H, pupilColors);
     }
 }
 
-void EyeRenderer::buildGradient(lgfx::rgb888_t *grad, lgfx::rgb888_t target)
+void EyeRenderer::buildGradient(Color *grad, Color target)
 {
     grad[0] = target;
     grad[1] = lerpColor(target, {0, 0, 0}, 0.25f);
@@ -286,50 +291,6 @@ void EyeRenderer::blendShapes(BezierLine *out, const EyeState &e)
     }
 }
 
-/* void EyeRenderer::transformShape(BezierLine *shape, const EyeState &e)
-{
-    float sx = e.scale.x;
-    float sy = e.scale.y;
-
-    float angle = e.rotation; // in radians!
-    float cosA = cosf(angle);
-    float sinA = sinf(angle);
-
-    auto transform = [&](Point &p)
-    {
-        // Center auf (0,0)
-        p.x -= 0.5f;
-        p.y -= 0.5f;
-
-        // Scale
-        p.x *= sx;
-        p.y *= sy;
-
-        // Rotation
-        float x = p.x * cosA - p.y * sinA;
-        float y = p.x * sinA + p.y * cosA;
-
-        p.x = x;
-        p.y = y;
-
-        // flip
-        if (e.flipX)
-            p.x = -p.x;
-
-        // zurück in 0..1
-        p.x += 0.5f;
-        p.y += 0.5f;
-    };
-
-    for (int i = 0; i < BEZIER_COUNT; i++)
-    {
-        transform(shape[i].ps);
-        transform(shape[i].pe);
-        transform(shape[i].c1);
-        transform(shape[i].c2);
-    }
-} */
-
 void EyeRenderer::transformShape(BezierLine *shape, const EyeState &e)
 {
     float sx = e.scale.x;
@@ -342,10 +303,10 @@ void EyeRenderer::transformShape(BezierLine *shape, const EyeState &e)
     float fx = e.flipX ? -1.0f : 1.0f;
 
     // --- Matrix ---
-    float m00 =  cosA * sx * fx;
+    float m00 = cosA * sx * fx;
     float m01 = -sinA * sy;
-    float m10 =  sinA * sx * fx;
-    float m11 =  cosA * sy;
+    float m10 = sinA * sx * fx;
+    float m11 = cosA * sy;
 
     // --- Offset (zentriert um 0.5 / 0.5) ---
     float tx = 0.5f - (m00 * 0.5f + m01 * 0.5f);
@@ -402,7 +363,7 @@ void EyeRenderer::buildEdgeTable(EyeRenderCache &cache)
         Point p1 = cache.pts[i];
         Point p2 = cache.pts[(i + 1) % n];
 
-        //if ((int)p1.y == (int)p2.y)
+        // if ((int)p1.y == (int)p2.y)
         if (abs(p1.y - p2.y) < 0.01f)
             continue; // horizontal überspringen
 
@@ -466,7 +427,47 @@ void EyeRenderer::fillPolygonET(EyeRenderCache &cache, LGFX_Sprite &spr, uint16_
 
 // --- Private – Color ---------------------------------------------------------
 
-bool EyeRenderer::updateColor(lgfx::rgb888_t &current, lgfx::rgb888_t target, float speed)
+inline lgfx::rgb888_t EyeRenderer::toLGFX(const Color &c)
+{
+    return {c.r, c.g, c.b};
+}
+
+void EyeRenderer::fillGradient()
+{
+    float cx = MAX_W * 0.5f;
+    float cy = MAX_H * 0.5f;
+
+    float invW = 2.0f / MAX_W;
+    float invH = 2.0f / MAX_H;
+
+    Color inner = pupilGradient[3];
+    Color outer = pupilGradient[0];
+
+    for (int y = 0; y < MAX_H; y++)
+    {
+        float dy = (y - cy) * invH;
+
+        for (int x = 0; x < MAX_W; x++)
+        {
+            float dx = (x - cx) * invW;
+
+            float d2 = dx * dx + dy * dy;
+            if (d2 > 1.0f) d2 = 1.0f;
+
+            float t = 1.0f - d2;
+            if (t < 0) t = 0;
+
+            Color c;
+            c.r = inner.r + (outer.r - inner.r) * t;
+            c.g = inner.g + (outer.g - inner.g) * t;
+            c.b = inner.b + (outer.b - inner.b) * t;
+
+            _radialGradient.drawPixel(x, y, toLGFX(c));
+        }
+    }
+}
+
+bool EyeRenderer::updateColor(Color &current, Color target, float speed)
 {
     bool changed = false;
 
@@ -515,7 +516,7 @@ BezierLine EyeRenderer::lerp(const BezierLine &a, const BezierLine &b, float t)
             lerp(a.c1, b.c1, t), lerp(a.c2, b.c2, t)};
 }
 
-lgfx::rgb888_t EyeRenderer::lerpColor(const lgfx::rgb888_t &a, const lgfx::rgb888_t &b, float t)
+Color EyeRenderer::lerpColor(const Color &a, const Color &b, float t)
 {
     return {lerp(a.r, b.r, t), lerp(a.g, b.g, t), lerp(a.b, b.b, t)};
 }

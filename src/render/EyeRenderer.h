@@ -26,7 +26,7 @@ public:
     void idle();
 
     void setEmotion(const Emotion& emo);
-    void setThemeColor(lgfx::rgb888_t color);
+    void setThemeColor(Color color);
     
 
     int bezierRes = 5;
@@ -46,17 +46,17 @@ private:
     EyeState eyeL;
     EyeState eyeR;
 
-    lgfx::rgb888_t default_color;
-    lgfx::rgb888_t themeColor;
+    Color default_color;
+    Color themeColor;
 
     // Cache
     EyeRenderCache _cacheL;
     EyeRenderCache _cacheR;
 
     // Gradient
-    void buildGradient(lgfx::rgb888_t *grad, lgfx::rgb888_t target);
+    void buildGradient(Color *grad, Color target);
 
-    lgfx::rgb888_t pupilGradient[4] =
+    Color pupilGradient[4] =
         {
             {0, 0, 0}, // Zentrum
             {0, 0, 0}, // Mitte
@@ -64,10 +64,7 @@ private:
             {0, 0, 0},
     };
 
-    lgfx::colors_t pupilColors =
-        {
-            pupilGradient,
-            4};
+    //lgfx::colors_t pupilColors;
 
     // Geometry
     void sampleBezier(const BezierLine &b, std::vector<Point> &pts, uint8_t steps);
@@ -93,13 +90,15 @@ private:
                  uint16_t screen_x, uint16_t screen_y);
 
     // Color
-    bool updateColor(lgfx::rgb888_t &current, lgfx::rgb888_t target, float speed = 0.1f);
+    bool updateColor(Color &current, Color target, float speed = 0.1f);
+    void fillGradient();
+    inline lgfx::rgb888_t toLGFX(const Color &c);
 
     // Lerp helpers
     float lerp(float a, float b, float t);
     Point lerp(const Point &a, const Point &b, float t);
     uint8_t lerp(uint8_t a, uint8_t b, float t);
     BezierLine lerp(const BezierLine &a, const BezierLine &b, float t);
-    lgfx::rgb888_t lerpColor(const lgfx::rgb888_t &a, const lgfx::rgb888_t &b, float t);
+    Color lerpColor(const Color &a, const Color &b, float t);
     Emotion lerpEmotion(const Emotion &a, const Emotion &b, float t);
 };

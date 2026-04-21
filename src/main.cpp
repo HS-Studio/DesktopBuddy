@@ -28,6 +28,7 @@ void setup()
 {
     Serial.begin(115200);
     delay(1000);
+    Serial.println("Starting...");
 
     pinMode(JOY_X_PIN, INPUT);
     pinMode(JOY_Y_PIN, INPUT);
@@ -150,7 +151,7 @@ void printFPS()
     if (millis() - fpsMillis >= 1000)
     {
         fps = fpsCounter;
-        // Serial.println(fps);
+        Serial.println(fps);
 
         fpsCounter = 0;
         fpsMillis = millis();

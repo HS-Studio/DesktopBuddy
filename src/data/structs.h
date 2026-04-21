@@ -20,6 +20,13 @@ struct BezierLine
     Point c2;
 };
 
+struct Color
+{
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+};
+
 struct EmotionLayer
 {
     const BezierLine* shape;
@@ -44,7 +51,7 @@ struct Emotion
     float rotationR;
 
     bool hasColorOverride;
-    lgfx::rgb888_t overrideColor;
+    Color overrideColor;
 };
 
 struct EyeState
@@ -60,7 +67,7 @@ struct EyeState
 
     Emotion emotion;
 
-    lgfx::rgb888_t color;
+    Color color;
     uint8_t brightnes;
 };
 
