@@ -10,32 +10,8 @@ EyeRenderer::EyeRenderer(LGFX &tft)
       _maskSprite(&tft),
       _radialGradient(&tft)
 {
-    _defaultState = {
-        {0.0f, 0.0f},   // gaze
-        {0.0f, 0.0f},   // pos
-        {0.75f, 0.75f}, // scale
-        0.0f,           // rotation
-        0.5f,           // pupilSize
-        false,          // flipX
-        emo_neutral,    // emotion
-        {0, 255, 0},    // color
-        255             // brightnes
-    };
-
-    _startState = {
-        {0.0f, 0.0f}, // gaze
-        {0.0f, 0.0f}, // pos
-        {1.0f, 0.1f}, // scale
-        0.0f,         // rotation
-        0.5f,         // pupilSize
-        false,        // flipX
-        emo_neutral,  // emotion
-        {0, 0, 0},    // color
-        0             // brightnes
-    };
-
-    eyePair.current = _startState;
-    eyePair.target = _defaultState;
+    eyePair.current = emo_blink_low;
+    eyePair.target = emo_neutral;
     eyePair.convergence = 0.6f;
 }
 
@@ -59,7 +35,7 @@ void EyeRenderer::begin()
     _cacheR.dirty = true;
 
     setThemeColor({0, 255, 0});
-    buildGradient(pupilGradient, eyePair.target.color);
+    buildGradient(pupilGradient, themeColor);
 
     _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
     fillGradient();
@@ -70,21 +46,20 @@ void EyeRenderer::begin()
 
 void EyeRenderer::drawFace(int screen_x, int screen_y)
 {
-    eyeL = eyePair.current;
-    eyeR = eyePair.current;
+    // interpolate
+    applyEmotion(eyePair.current, eyePair.target, 0.20f);
 
-    int16_t x = screen_x + eyeL.gaze.x * MAX_X;
-    int16_t y = screen_y + eyeR.gaze.y * MAX_Y;
+    // draw
+    int16_t x = screen_x + eyePair.current.gaze.x * MAX_X;
+    int16_t y = screen_y + eyePair.current.gaze.y * MAX_Y;
 
-    applyEmotion(eyePair.current.emotion, eyeL, eyeR);
+    drawEye(_eyeLSprite, eyePair.current.left, _cacheL, eyePair.current.gaze, +eyePair.convergence, x, y);
+    drawEye(_eyeRSprite, eyePair.current.right, _cacheR, eyePair.current.gaze, -eyePair.convergence, x + MAX_W, y);
 
-    eyeL.pos.x += eyePair.convergence;
-    eyeR.pos.x -= eyePair.convergence;
+    // drawEye(_eyeLSprite, eyeL, _cacheL, eyeL.emotion.left, x, y);
+    // drawEye(_eyeRSprite, eyeR, _cacheR, eyeR.emotion.right, x + MAX_W, y);
 
-    drawEye(_eyeLSprite, eyeL, _cacheL, x, y);
-    drawEye(_eyeRSprite, eyeR, _cacheR, x + MAX_W, y);
-
-    updateEyeState(eyePair.current, eyePair.target, 0.20f);
+    // interpolateEyeState(eyePair.current, eyePair.target, 0.20f);
 }
 
 void EyeRenderer::lookAt(float x, float y)
@@ -109,10 +84,10 @@ void EyeRenderer::idle()
 
 void EyeRenderer::setEmotion(const Emotion &emo)
 {
-    eyePair.target.emotion = emo;
+    eyePair.target = emo;
 
-    if (emo.hasColorOverride)
-        eyePair.target.color = emo.overrideColor;
+    if (emo.left.hasColorOverride)
+        eyePair.target.color = emo.left.color;
     else
         eyePair.target.color = themeColor;
 }
@@ -125,19 +100,28 @@ void EyeRenderer::setThemeColor(Color color)
 
 // --- Private - Draw ----------------------------------------------------------
 
-void EyeRenderer::drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache,
+void EyeRenderer::drawEye(LGFX_Sprite &eyeSpr, EyeEmotion &emo, EyeRenderCache &cache,
+                          const Point &gaze, float convergenceOffsetX,
                           uint16_t screen_x, uint16_t screen_y)
 {
+    if (convergenceOffsetX > 0)
+        if (abs(emo.offset.x - convergenceOffsetX) > 0.02f)
+            emo.offset.x += 0.1f;
+
+    if (convergenceOffsetX < 0)
+        if (abs(emo.offset.x - convergenceOffsetX) > 0.02f)
+            emo.offset.x -= 0.1f;
 
     eyeSpr.fillSprite(toLGFX(pupilGradient[3]));
     _maskSprite.fillSprite(TFT_BLACK);
 
-    updateShapeCache(cache, e);
+    updateShapeCache(cache, emo);
 
-    int16_t gX = e.gaze.x * MAX_X;
-    int16_t gY = e.gaze.y * MAX_Y;
-    int16_t ox = e.pos.x * (MAX_W * 0.25f);
-    int16_t oy = e.pos.y * (MAX_H * 0.25f);
+    int16_t gX = gaze.x * MAX_X;
+    int16_t gY = gaze.y * MAX_Y;
+
+    int16_t ox = emo.offset.x * (MAX_W * 0.25f);
+    int16_t oy = emo.offset.y * (MAX_H * 0.25f);
 
     fillPolygonET(cache, _maskSprite, TFT_WHITE);
 
@@ -149,49 +133,54 @@ void EyeRenderer::drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cach
 
 // --- Private – Cache ---------------------------------------------------------
 
-void EyeRenderer::updateShapeCache(EyeRenderCache &cache, EyeState &e)
+void EyeRenderer::updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo)
 {
-    bool changed = cache.dirty ||
-                   hasChanged(e.gaze, cache.lastState.gaze) ||
-                   hasChanged(e.pos, cache.lastState.pos) ||
-                   hasChanged(e.scale, cache.lastState.scale) ||
-                   abs(e.rotation - cache.lastState.rotation) < 0.001f ||
-                   abs(e.pupilSize - cache.lastState.pupilSize) < 0.001f ||
-                   emotionChanged(e.emotion, cache.lastState.emotion) ||
-                   e.flipX != cache.lastState.flipX;
+    bool changed =
+        cache.dirty ||
+        hasChanged(emo.offset, cache.lastEmo.offset) ||
+        hasChanged(emo.scale, cache.lastEmo.scale) ||
+        fabs(emo.rotation - cache.lastEmo.rotation) > 0.001f ||
+        emo.flipX != cache.lastEmo.flipX ||
+        emo.shape != cache.lastShape ||
+        fabs(emo.weight - cache.lastWeight) > 0.001f;
 
     if (!changed)
         return;
 
     BezierLine finalShape[BEZIER_COUNT];
-    blendShapes(finalShape, e);
-    transformShape(finalShape, e);
+    const BezierLine *a = cache.prevShape ? cache.prevShape : shape_base;
+    const BezierLine *b = emo.shape ? emo.shape : shape_base;
+
+    //memcpy(finalShape, a, sizeof(BezierLine) * BEZIER_COUNT);
+
+    for (int i = 0; i < BEZIER_COUNT; i++)
+    {
+        finalShape[i] = lerp(a[i], b[i], emo.weight);
+    }
+
+    /*     if (emo.shape && emo.weight > 0.001f)
+        {
+            Serial.println("MORPH!!!");
+            morphShape(finalShape, finalShape, emo.shape, emo.weight);
+        } */
+
+    if (emo.weight > 0.99f)
+        cache.prevShape = emo.shape;
+
+    transformShape(finalShape, emo);
     buildShape(finalShape, bezierRes, cache.pts);
-    toScreenSpace(cache.pts, e);
+
+    toScreenSpace(cache.pts, emo);
     buildEdgeTable(cache);
 
-    cache.lastState = e;
+    cache.lastEmo.offset = emo.offset;
+    cache.lastEmo.scale = emo.scale;
+    cache.lastEmo.rotation = emo.rotation;
+    cache.lastEmo.flipX = emo.flipX;
+    cache.lastShape = emo.shape;
+    cache.lastWeight = emo.weight;
+
     cache.dirty = false;
-}
-
-void EyeRenderer::updateEyeState(EyeState &eye, EyeState &target, float speed)
-{
-    eye.gaze = lerp(eye.gaze, target.gaze, speed);
-    eye.pos = lerp(eye.pos, target.pos, speed);
-    eye.pupilSize = lerp(eye.pupilSize, target.pupilSize, speed);
-    eye.brightnes = lerp(eye.brightnes, target.brightnes, speed);
-
-    eye.emotion = lerpEmotion(eye.emotion, target.emotion, speed);
-    eye.emotion.flipL = target.emotion.flipL;
-    eye.emotion.flipR = target.emotion.flipR;
-
-    if (updateColor(eye.color, target.color, speed))
-    {
-        buildGradient(pupilGradient, eye.color);
-        _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
-        fillGradient();
-        //_radialGradient.fillGradientRect(0, 0, MAX_W, MAX_H, pupilColors);
-    }
 }
 
 void EyeRenderer::buildGradient(Color *grad, Color target)
@@ -202,42 +191,51 @@ void EyeRenderer::buildGradient(Color *grad, Color target)
     grad[3] = lerpColor(target, {0, 0, 0}, 0.5f);
 }
 
-void EyeRenderer::applyEmotion(const Emotion &emo, EyeState &left, EyeState &right)
+void EyeRenderer::applyEmotion(Emotion &current, const Emotion &target, float t)
 {
-    left.scale = emo.scaleL;
-    right.scale = emo.scaleR;
+    current.gaze = lerp(current.gaze, target.gaze, t);
+    current.pupilSize = lerp(current.pupilSize, target.pupilSize, t);
 
-    left.pos = emo.offsetL;
-    right.pos = emo.offsetR;
+    applyEyeEmotion(current.left,  target.left,  _cacheL, t);
+    applyEyeEmotion(current.right, target.right, _cacheR, t);
 
-    left.rotation = emo.rotationL;
-    right.rotation = emo.rotationR;
+    // color
+    Color targetColor = target.left.hasColorOverride ? target.left.color : themeColor;
+    if (updateColor(current.left.color, targetColor, t))
+    {
+        buildGradient(pupilGradient, current.left.color);
+        _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
+        fillGradient();
+    }
+    targetColor = target.right.hasColorOverride ? target.right.color : themeColor;
+    if (updateColor(current.right.color, targetColor, t))
+    {
+        buildGradient(pupilGradient, current.right.color);
+        _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
+        fillGradient();
+    }
+}
 
-    left.flipX = emo.flipL;
-    right.flipX = emo.flipR;
+void EyeRenderer::applyEyeEmotion(EyeEmotion &current, const EyeEmotion &target, EyeRenderCache &cache, float t)
+{
 
-    left.emotion = emo;
-    right.emotion = emo;
+    if (current.shape != target.shape)
+    {
+        cache.prevShape = current.shape ? current.shape : shape_base;
+        current.shape   = target.shape;
+        current.weight  = 0.0f;
+    }
+
+    current.weight   = lerp(current.weight,   target.weight,   t);
+    current.scale    = lerp(current.scale,    target.scale,    t);
+    current.offset   = lerp(current.offset,   target.offset,   t);
+    current.rotation = lerp(current.rotation, target.rotation, t);
+    current.flipX    = target.flipX;
 }
 
 bool EyeRenderer::hasChanged(const Point &a, const Point &b, float eps)
 {
     return abs(a.x - b.x) > eps || abs(a.y - b.y) > eps;
-}
-
-bool EyeRenderer::emotionChanged(const Emotion &a, const Emotion &b)
-{
-    if (a.count != b.count)
-        return true;
-
-    for (int i = 0; i < a.count; i++)
-    {
-        if (a.layers[i].shape != b.layers[i].shape)
-            return true;
-        if (abs(a.layers[i].weight - b.layers[i].weight) > 0.001f)
-            return true;
-    }
-    return false;
 }
 
 // --- Private – Geometry ------------------------------------------------------
@@ -280,18 +278,13 @@ void EyeRenderer::morphShape(BezierLine *out, const BezierLine *base,
         out[i] = lerp(base[i], target[i], t);
 }
 
-void EyeRenderer::blendShapes(BezierLine *out, const EyeState &e)
+void EyeRenderer::blendShapes(BezierLine *out, const EyeEmotion &emo)
 {
     memcpy(out, shape_base, sizeof(BezierLine) * BEZIER_COUNT);
-
-    for (int i = 0; i < e.emotion.count; i++)
-    {
-        const EmotionLayer &layer = e.emotion.layers[i];
-        morphShape(out, out, layer.shape, layer.weight);
-    }
+    morphShape(out, out, emo.shape, emo.weight);
 }
 
-void EyeRenderer::transformShape(BezierLine *shape, const EyeState &e)
+void EyeRenderer::transformShape(BezierLine *shape, const EyeEmotion &e)
 {
     float sx = e.scale.x;
     float sy = e.scale.y;
@@ -330,10 +323,10 @@ void EyeRenderer::transformShape(BezierLine *shape, const EyeState &e)
     }
 }
 
-void EyeRenderer::toScreenSpace(std::vector<Point> &pts, const EyeState &e)
+void EyeRenderer::toScreenSpace(std::vector<Point> &pts, const EyeEmotion &e)
 {
-    float offsetX = (MAX_W / 2) + e.pos.x * MAX_W * 0.25f;
-    float offsetY = (MAX_H / 2) + e.pos.y * MAX_H * 0.25f;
+    float offsetX = (MAX_W / 2) + e.offset.x * MAX_W * 0.25f;
+    float offsetY = (MAX_H / 2) + e.offset.y * MAX_H * 0.25f;
 
     for (auto &p : pts)
     {
@@ -452,10 +445,12 @@ void EyeRenderer::fillGradient()
             float dx = (x - cx) * invW;
 
             float d2 = dx * dx + dy * dy;
-            if (d2 > 1.0f) d2 = 1.0f;
+            if (d2 > 1.0f)
+                d2 = 1.0f;
 
             float t = 1.0f - d2;
-            if (t < 0) t = 0;
+            if (t < 0)
+                t = 0;
 
             Color c;
             c.r = inner.r + (outer.r - inner.r) * t;
@@ -519,60 +514,4 @@ BezierLine EyeRenderer::lerp(const BezierLine &a, const BezierLine &b, float t)
 Color EyeRenderer::lerpColor(const Color &a, const Color &b, float t)
 {
     return {lerp(a.r, b.r, t), lerp(a.g, b.g, t), lerp(a.b, b.b, t)};
-}
-
-Emotion EyeRenderer::lerpEmotion(const Emotion &a, const Emotion &b, float t)
-{
-    Emotion out{};
-
-    out.scaleL = lerp(a.scaleL, b.scaleL, t);
-    out.scaleR = lerp(a.scaleR, b.scaleR, t);
-    out.offsetL = lerp(a.offsetL, b.offsetL, t);
-    out.offsetR = lerp(a.offsetR, b.offsetR, t);
-    out.rotationL = lerp(a.rotationL, b.rotationL, t);
-    out.rotationR = lerp(a.rotationR, b.rotationR, t);
-    out.flipL = (t < 0.5f) ? a.flipL : b.flipL;
-    out.flipR = (t < 0.5f) ? a.flipR : b.flipR;
-
-    // Layer mergen
-    out.count = 0;
-
-    for (int i = 0; i < a.count; i++)
-    {
-        const BezierLine *shape = a.layers[i].shape;
-        float wa = a.layers[i].weight;
-        float wb = 0.0f;
-
-        for (int j = 0; j < b.count; j++)
-            if (b.layers[j].shape == shape)
-            {
-                wb = b.layers[j].weight;
-                break;
-            }
-
-        float w = lerp(wa, wb, t);
-        if (w > 0.001f && out.count < NUM_EMOTIONS)
-            out.layers[out.count++] = {shape, w};
-    }
-
-    for (int i = 0; i < b.count; i++)
-    {
-        const BezierLine *shape = b.layers[i].shape;
-        bool found = false;
-        for (int j = 0; j < out.count; j++)
-            if (out.layers[j].shape == shape)
-            {
-                found = true;
-                break;
-            }
-
-        if (!found && out.count < NUM_EMOTIONS)
-        {
-            float w = lerp(0.0f, b.layers[i].weight, t);
-            if (w > 0.001f)
-                out.layers[out.count++] = {shape, w};
-        }
-    }
-
-    return out;
 }

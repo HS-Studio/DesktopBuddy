@@ -40,11 +40,7 @@ private:
     LGFX_Sprite _radialGradient;
 
     // States
-    EyeState _defaultState;
-    EyeState _startState;
     EyePair eyePair;
-    EyeState eyeL;
-    EyeState eyeR;
 
     Color default_color;
     Color themeColor;
@@ -69,25 +65,24 @@ private:
     // Geometry
     void sampleBezier(const BezierLine &b, std::vector<Point> &pts, uint8_t steps);
     void buildShape(BezierLine *shape, int steps, std::vector<Point> &pts);
-    void blendShapes(BezierLine *out, const EyeState &e);
+    void blendShapes(BezierLine *out, const EyeEmotion &emo);
     void morphShape(BezierLine *out, const BezierLine *base, const BezierLine *target, float t);
-    void transformShape(BezierLine *shape, const EyeState &e);
-    void toScreenSpace(std::vector<Point> &pts, const EyeState &e);
+    void transformShape(BezierLine *shape, const EyeEmotion &e);
+    void toScreenSpace(std::vector<Point> &pts, const EyeEmotion &e);
 
     // Rasterizer
     void buildEdgeTable(EyeRenderCache &cache);
     void fillPolygonET(EyeRenderCache &cache, LGFX_Sprite &spr, uint16_t color);
 
     // Cache
-    void updateEyeState(EyeState &eye, EyeState &target, float speed = 0.1f);
-    void updateShapeCache(EyeRenderCache &cache, EyeState &e);
+    //void interpolateEyeState(EyeState &eye, EyeState &target, float speed = 0.1f);
+    void updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo);
     bool hasChanged(const Point &a, const Point &b, float eps = 0.001f);
-    bool emotionChanged(const Emotion &a, const Emotion &b);
 
     // Draw
-    void applyEmotion(const Emotion &emo, EyeState &left, EyeState &right);
-    void drawEye(LGFX_Sprite &eyeSpr, EyeState &e, EyeRenderCache &cache,
-                 uint16_t screen_x, uint16_t screen_y);
+    void applyEmotion(Emotion &current, const Emotion &target, float t);
+    void applyEyeEmotion(EyeEmotion &current, const EyeEmotion &target, EyeRenderCache &cache, float t);
+    void drawEye(LGFX_Sprite &eyeSpr, EyeEmotion &emo, EyeRenderCache &cache, const Point &gaze, float convergenceOffsetX, uint16_t screen_x, uint16_t screen_y);
 
     // Color
     bool updateColor(Color &current, Color target, float speed = 0.1f);
@@ -100,5 +95,4 @@ private:
     uint8_t lerp(uint8_t a, uint8_t b, float t);
     BezierLine lerp(const BezierLine &a, const BezierLine &b, float t);
     Color lerpColor(const Color &a, const Color &b, float t);
-    Emotion lerpEmotion(const Emotion &a, const Emotion &b, float t);
 };

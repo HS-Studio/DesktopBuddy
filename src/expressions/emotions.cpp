@@ -1,144 +1,195 @@
 #include "emotions.h"
 
-const Emotion emo_neutral{
-    .layers = {},
-    .count = 0,
+const Emotion emo_neutral = {
+    .left =
+        {
+            .weight = 1.0f,
 
-    .scaleL{0.65f, 0.65f},
-    .scaleR{0.65f, 0.7f},
+            .scale = {0.65f, 0.65f},
+            .offset = {0.0f, 0.0f},
+            .rotation = 1.0f, // radian
 
-    .offsetL{0,0},
-    .offsetR{0,0},
+            .flipX = false,
 
-    .flipL = false,
-    .flipR = false,
+            .hasColorOverride = false,
 
-    .rotationL = 0,
-    .rotationR = 0
-};
+            .pupilSize = -1 // -1 = nicht überschreiben
+        },
+    .right =
+        {
+            .weight = 1.0f,
+
+            .scale = {0.65f, 0.65f},
+            .offset = {0.0f, 0.0f},
+            .rotation = 0.0f, // radian
+
+            .flipX = false,
+
+            .hasColorOverride = false,
+
+            .pupilSize = -1}};
 
 const Emotion emo_blink_low{
-    .layers = {
-        { shape_blink, 1.0f }
-    },
-    .count = 1,
+    .left =
+        {
+            .shape = shape_blink,
+            .weight = 1.0f,
 
-    .scaleL{0.65f, 0.65f},
-    .scaleR{0.65f, 0.65f},
+            .scale{0.65f, 0.65f},
+            .offset{0, 0.5f}},
+    .right =
+        {
+            .shape = shape_blink,
+            .weight = 1.0f,
 
-    .offsetL{0,0.5f},
-    .offsetR{0,0.5f}
-};
+            .scale{0.65f, 0.65f},
+            .offset{0, 0.5f}}};
 
 const Emotion emo_blink_high{
-    .layers = {
-        { shape_blink, 1.0f }
-    },
-    .count = 1,
+    .left =
+        {
+            .shape = shape_blink,
+            .weight = 1.0f,
 
-    .scaleL{0.65f, 0.65f},
-    .scaleR{0.65f, 0.65f},
+            .scale{0.65f, 0.65f},
+            .offset{0, -0.5f}},
+    .right =
+        {
+            .shape = shape_blink,
+            .weight = 1.0f,
 
-    .offsetL{0,-0.5f},
-    .offsetR{0,-0.5f}
-};
+            .scale{0.65f, 0.65f},
+            .offset{0, -0.5f}}};
 
 const Emotion emo_happy{
-    .layers = {
-        { shape_happy, 1.0f }
-    },
-    .count = 1,
+    .left =
+        {
+            .shape = shape_happy,
+            .weight = 1.0f,
 
-    .scaleL{0.65f, 0.65f},
-    .scaleR{0.65f, 0.65f}
-};
+            .scale{0.65f, 0.65f}},
+    .right =
+        {
+            .shape = shape_happy,
+            .weight = 1.0f,
+
+            .scale{0.65f, 0.65f}}};
 
 const Emotion emo_glee{
-    .layers = {
-        { shape_glee, 1.0f }
-    },
-    .count = 1,
+    .left =
+        {
+            .shape = shape_glee,
+            .weight = 1.0f,
 
-    .scaleL{0.65f, 0.65f},
-    .scaleR{0.65f, 0.65f},
+            .scale{0.65f, 0.65f},
+            .rotation = 0.08f},
+    .right =
+        {
+            .shape = shape_glee,
+            .weight = 1.0f,
 
-    .rotationL = 0.08f, // radians
-    .rotationR = -0.08f
-};
+            .scale{0.65f, 0.65f},
+            .rotation = -0.08f}};
 
 const Emotion emo_angry{
-    .layers = {
-        { shape_angry, 1.0f }
-    },
-    .count = 1,
+    .left =
+        {
+            .shape = shape_angry,
+            .weight = 1.0f,
 
-    .scaleL = {0.60f, 0.60f},
-    .scaleR = {0.65f, 0.65f},
+            .scale = {0.60f, 0.60f},
 
-    .flipR = true,
+            .hasColorOverride = true,
+            .color = {255, 0, 0}},
+    .right =
+        {
+            .shape = shape_angry,
+            .weight = 1.0f,
 
-    .hasColorOverride = true,
-    .overrideColor = {255,0,0}
+            .scale = {0.65f, 0.65f},
+            .flipX = true,
+
+            .hasColorOverride = true,
+            .color = {255, 0, 0}},
 };
 
 const Emotion emo_sad_down{
-    .layers = {
-        { shape_sad_down, 1.0f }
-    },
-    .count = 1,
+    .left =
+        {
+            .shape = shape_sad_down,
+            .weight = 1.0f,
 
-    .scaleL = {0.65f, 0.65f},
-    .scaleR = {0.65f, 0.65f},
+            .scale = {0.65f, 0.65f},
+            .offset{0, 0.5f}},
+    .right =
+        {
+            .shape = shape_sad_down,
+            .weight = 1.0f,
 
-    .offsetL{0,0.5f},
-    .offsetR{0,0.5f},
+            .scale = {0.65f, 0.65f},
+            .offset{0, 0.5f},
 
-    .flipR = true
-};
+            .flipX = true}};
 
 const Emotion emo_sad_up{
-    .layers = {
-        { shape_sad_up, 1.0f }
-    },
-    .count = 1,
+    .left =
+        {
+            .shape = shape_sad_up,
+            .weight = 1.0f,
 
-    .scaleL = {0.65f, 0.65f},
-    .scaleR = {0.65f, 0.65f},
+            .scale = {0.65f, 0.65f},
+            .offset{0, -0.5f},
 
-    .offsetL{0,-0.5f},
-    .offsetR{0,-0.5f},
+            .gaze = {0.5f, 0.5f}},
+    .right =
+        {
+            .shape = shape_sad_up,
+            .weight = 1.0f,
 
-    .flipR = true
-};
+            .scale = {0.65f, 0.65f},
+            .offset{0, -0.5f},
+
+            .flipX = true}};
 
 const Emotion emo_worried{
-    .layers = {
-        { shape_worried, 1.0f }
-    },
-    .count = 1,
+    .left =
+        {
+            .shape = shape_worried,
+            .weight = 1.0f,
 
-    .scaleL{0.65f, 0.65f},
-    .scaleR{0.65f, 0.7f},
+            .scale = {0.65f, 0.65f}},
+    .right =
+        {
+            .shape = shape_worried,
+            .weight = 1.0f,
 
-    .flipR = true
-};
+            .scale = {0.65f, 0.70f},
+            .flipX = true}};
 
 const Emotion emo_focused{
-    .layers = {
-        { shape_focused, 1.0f }
-    },
-    .count = 1,
+    .left =
+        {
+            .shape = shape_focused,
+            .weight = 1.0f,
 
-    .scaleL{0.65f, 0.65f},
-    .scaleR{0.65f, 0.65f},
-};
+            .scale = {0.65f, 0.65f}},
+    .right =
+        {
+            .shape = shape_focused,
+            .weight = 1.0f,
+
+            .scale = {0.65f, 0.70f}}};
 
 const Emotion emo_annoyed{
-    .layers = {
-        { shape_annoyed, 1.0f }
-    },
-    .count = 1,
+    .left =
+        {
+            .shape = shape_annoyed,
+            .weight = 1.0f,
 
-    .scaleL{0.65f, 0.65f},
-    .scaleR{0.65f, 0.45f},
-};
+            .scale = {0.65f, 0.65f}},
+    .right =
+        {
+            .shape = shape_annoyed,
+            .weight = 1.0f,
+
+            .scale = {0.65f, 0.45f}}};

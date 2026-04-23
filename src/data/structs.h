@@ -33,48 +33,39 @@ struct EmotionLayer
     float weight;
 };
 
-struct Emotion
+struct EyeEmotion
 {
-    EmotionLayer layers[NUM_EMOTIONS];
-    uint8_t count;
+    const BezierLine* shape;
+    float weight;
 
-    Point scaleL;
-    Point scaleR;
-
-    Point offsetL;
-    Point offsetR;
-
-    bool flipL;
-    bool flipR;
-
-    float rotationL;
-    float rotationR;
-
-    bool hasColorOverride;
-    Color overrideColor;
-};
-
-struct EyeState
-{
-    Point gaze;
-    Point pos;
     Point scale;
+    Point offset;
     float rotation;
-
-    float pupilSize;
 
     bool flipX;
 
-    Emotion emotion;
-
+    bool hasColorOverride;
     Color color;
-    uint8_t brightnes;
+
+    float pupilSize; // -1 = nicht überschreiben
+    Point gaze; // <= 0 = nicht überschreiben
+};
+
+struct Emotion
+{
+    EyeEmotion left;
+    EyeEmotion right;
+
+    Point gaze;
+    float pupilSize;
+    Color color;
 };
 
 struct EyePair
 {
-    EyeState current;
-    EyeState target;
+    Emotion current;
+    Emotion target;
+
     float convergence;
 };
 
@@ -93,6 +84,9 @@ struct EyeRenderCache
 
     int minY, maxY;
 
-    EyeState lastState;
+    EyeEmotion lastEmo;
+    const BezierLine* lastShape;
+    const BezierLine* prevShape;
+    float lastWeight;
     bool dirty = true;
 };
