@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "../LGFX_SPI_ST7789.h"
 
-constexpr uint8_t NUM_EMOTIONS = 11;
+constexpr uint8_t NUM_EMOTIONS = 21;
 
 struct Point
 {

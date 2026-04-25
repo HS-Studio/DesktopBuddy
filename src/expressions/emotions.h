@@ -4,13 +4,23 @@
 #include "../data/structs.h"
 
 extern const Emotion emo_neutral;
-extern const Emotion emo_blink_low;
 extern const Emotion emo_blink_high;
 extern const Emotion emo_happy;
 extern const Emotion emo_glee;
-extern const Emotion emo_angry;
+extern const Emotion emo_blink_low;
 extern const Emotion emo_sad_down;
 extern const Emotion emo_sad_up;
 extern const Emotion emo_worried;
 extern const Emotion emo_focused;
 extern const Emotion emo_annoyed;
+extern const Emotion emo_surprised;
+extern const Emotion emo_skeptic;
+extern const Emotion emo_frustrated;
+extern const Emotion emo_unimpressed;
+extern const Emotion emo_sleepy;
+extern const Emotion emo_suspicious;
+extern const Emotion emo_squint;
+extern const Emotion emo_angry;
+extern const Emotion emo_furious;
+extern const Emotion emo_scared;
+extern const Emotion emo_awe;

@@ -34,7 +34,7 @@ void EyeRenderer::begin()
     _cacheL.dirty = true;
     _cacheR.dirty = true;
 
-    setThemeColor({0, 255, 0});
+    setThemeColor({25, 200, 200});
     buildGradient(pupilGradient, themeColor);
 
     _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
@@ -204,13 +204,6 @@ void EyeRenderer::applyEmotion(Emotion &current, const Emotion &target, float t)
     if (updateColor(current.left.color, targetColor, t))
     {
         buildGradient(pupilGradient, current.left.color);
-        _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
-        fillGradient();
-    }
-    targetColor = target.right.hasColorOverride ? target.right.color : themeColor;
-    if (updateColor(current.right.color, targetColor, t))
-    {
-        buildGradient(pupilGradient, current.right.color);
         _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
         fillGradient();
     }
