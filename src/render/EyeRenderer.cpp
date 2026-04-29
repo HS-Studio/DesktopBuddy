@@ -10,9 +10,9 @@ EyeRenderer::EyeRenderer(LGFX &tft)
       _maskSprite(&tft),
       _radialGradient(&tft)
 {
-    eyePair.current = emo_blink_low;
-    eyePair.target = emo_neutral;
-    eyePair.convergence = 0.6f;
+    eyePair.current = emo_neutral;
+    eyePair.target = emo_angry;
+    eyePair.convergence = 0.5f;
 }
 
 void EyeRenderer::begin()
@@ -104,23 +104,16 @@ void EyeRenderer::drawEye(LGFX_Sprite &eyeSpr, EyeEmotion &emo, EyeRenderCache &
                           const Point &gaze, float convergenceOffsetX,
                           uint16_t screen_x, uint16_t screen_y)
 {
-    if (convergenceOffsetX > 0)
-        if (abs(emo.offset.x - convergenceOffsetX) > 0.02f)
-            emo.offset.x += 0.1f;
-
-    if (convergenceOffsetX < 0)
-        if (abs(emo.offset.x - convergenceOffsetX) > 0.02f)
-            emo.offset.x -= 0.1f;
 
     eyeSpr.fillSprite(toLGFX(pupilGradient[3]));
     _maskSprite.fillSprite(TFT_BLACK);
 
-    updateShapeCache(cache, emo);
+    updateShapeCache(cache, emo, convergenceOffsetX);
 
     int16_t gX = gaze.x * MAX_X;
     int16_t gY = gaze.y * MAX_Y;
 
-    int16_t ox = emo.offset.x * (MAX_W * 0.25f);
+    int16_t ox = (emo.offset.x + convergenceOffsetX) * (MAX_W * 0.25f);
     int16_t oy = emo.offset.y * (MAX_H * 0.25f);
 
     fillPolygonET(cache, _maskSprite, TFT_WHITE);
@@ -133,19 +126,27 @@ void EyeRenderer::drawEye(LGFX_Sprite &eyeSpr, EyeEmotion &emo, EyeRenderCache &
 
 // --- Private – Cache ---------------------------------------------------------
 
-void EyeRenderer::updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo)
+void EyeRenderer::updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo, float convergenceOffsetX)
 {
     bool changed =
         cache.dirty ||
         hasChanged(emo.offset, cache.lastEmo.offset) ||
         hasChanged(emo.scale, cache.lastEmo.scale) ||
         fabs(emo.rotation - cache.lastEmo.rotation) > 0.001f ||
+        fabs(emo.top.openness - cache.lastEmo.top.openness) > 0.001f ||
+        fabs(emo.top.curvature - cache.lastEmo.top.curvature) > 0.001f ||
+        fabs(emo.top.tilt - cache.lastEmo.top.tilt) > 0.001f ||
+        fabs(emo.top.roundness - cache.lastEmo.top.roundness) > 0.001f ||
+        fabs(emo.bottom.openness - cache.lastEmo.bottom.openness) > 0.001f ||
+        fabs(emo.bottom.curvature - cache.lastEmo.bottom.curvature) > 0.001f ||
+        fabs(emo.bottom.tilt - cache.lastEmo.bottom.tilt) > 0.001f ||
+        fabs(emo.bottom.roundness - cache.lastEmo.bottom.roundness) > 0.001f ||
         emo.flipX != cache.lastEmo.flipX;
 
     if (!changed)
         return;
 
-    buildEyeShape(cache, emo);
+    buildEyeShape(cache, emo, convergenceOffsetX);
     transformShape(cache.pts, emo);
     // buildShape(finalShape, bezierRes, cache.pts);
 
@@ -213,14 +214,14 @@ bool EyeRenderer::hasChanged(const Point &a, const Point &b, float eps)
 
 // --- Private – Geometry ------------------------------------------------------
 
-void EyeRenderer::buildEyeShape(EyeRenderCache &cache, const EyeEmotion &emo)
+void EyeRenderer::buildEyeShape(EyeRenderCache &cache, const EyeEmotion &emo, float convergenceOffsetX)
 {
     cache.pts.clear();
 
-    const float cx = 0.5;   // Mittelpunkt X
-    const float cy = 0.5;   // Mittelpunkt Y
-    const float W  = 1.0;    // Breite
-    const float H  = 1.0;    // Höhe (bei voller Öffnung)
+    const float cx = 0.5 + (convergenceOffsetX * 0.5); // Mittelpunkt X
+    const float cy = 0.5;                              // Mittelpunkt Y
+    const float W = 1.0;                               // Breite
+    const float H = 1.0;                               // Höhe (bei voller Öffnung)
 
     const float hw = W * 0.5f;
     const float hh = H * 0.5f;
@@ -233,99 +234,106 @@ void EyeRenderer::buildEyeShape(EyeRenderCache &cache, const EyeEmotion &emo)
     float topOpen = hh * top.openness;
     float botOpen = hh * bot.openness;
 
-    Point TL_ = { cx - hw,  cy - topOpen + top.tilt * H };
-    Point TR_ = { cx + hw,  cy - topOpen - top.tilt * H };
-    Point BL_ = { cx - hw,  cy + botOpen + bot.tilt * H };
-    Point BR_ = { cx + hw,  cy + botOpen - bot.tilt * H };
+    Point TL_ = {cx - hw, cy - topOpen + top.tilt * H};
+    Point TR_ = {cx + hw, cy - topOpen - top.tilt * H};
+    Point BL_ = {cx - hw, cy + botOpen + bot.tilt * H};
+    Point BR_ = {cx + hw, cy + botOpen - bot.tilt * H};
 
     // Roundness
 
     float midY_L = (TL_.y + BL_.y) * 0.5f;
     float midY_R = (TR_.y + BR_.y) * 0.5f;
 
-    float rx     = hw * top.roundness;   // top.roundness als "globaler" border-radius
-    float ry_TL  = fabsf(TL_.y - midY_L) * top.roundness;
-    float ry_TR  = fabsf(TR_.y - midY_R) * top.roundness;
-    float ry_BL  = fabsf(BL_.y - midY_L) * bot.roundness;
-    float ry_BR  = fabsf(BR_.y - midY_R) * bot.roundness;
+    float rx_T = hw * top.roundness;
+    float rx_B = hw * bot.roundness;
+    float ry_TL = hh * top.roundness;
+    float ry_TR = hh * top.roundness;
+    float ry_BL = hh * bot.roundness;
+    float ry_BR = hh * bot.roundness;
 
     // Begrenzung
-    float maxRx  = hw;
-    if (rx  > maxRx)  rx  = maxRx;
+    float maxRx = hw;
+    if (rx_T > maxRx)
+        rx_T = maxRx;
+    if (rx_B > maxRx)
+        rx_T = maxRx;
 
     // Maximale Biegung für curvature
 
-    const float maxBow = hh * 0.5f;  // = H/4, entspricht "bis zur Hälfte"
+    const float maxBow = hh * 0.5f; // = H/4, entspricht "bis zur Hälfte"
 
     // Oben-Links Bogen
 
-    pushArc(cache, TL_.x, TL_.y, 1.0f, 1.0f, rx, ry_TL, bezierRes);
+    pushArc(cache, TL_.x, TL_.y, 1.0f, 1.0f, rx_T, ry_TL, bezierRes);
 
     // Obere Kante (Top-Lid)
     pushEdge(cache,
-             TL_.x + rx, TL_.y,
-             TR_.x - rx, TR_.y,
-             -top.curvature, maxBow, bezierRes);
+             TL_.x + rx_T, TL_.y,
+             TR_.x - rx_T, TR_.y,
+             top.curvature, maxBow, bezierRes);
 
     // Oben-Rechts Bogen
 
-    pushArc(cache, TR_.x, TR_.y, -1.0f, 1.0f, rx, ry_TR, bezierRes);
+    pushArc(cache, TR_.x, TR_.y, -1.0f, 1.0f, rx_T, ry_TR, bezierRes);
 
     // Rechte Kante
-    cache.pts.push_back({ TR_.x, TR_.y + ry_TR });
-    cache.pts.push_back({ BR_.x, BR_.y - ry_BR });
+    cache.pts.push_back({TR_.x, TR_.y + ry_TR});
+    cache.pts.push_back({BR_.x, BR_.y - ry_BR});
 
     // Unten-Rechts Bogen
 
-    pushArc(cache, BR_.x, BR_.y, -1.0f, -1.0f, rx, ry_BR, bezierRes);
+    pushArc(cache, BR_.x, BR_.y, -1.0f, -1.0f, rx_B, ry_BR, bezierRes);
 
     // Untere Kante (Bottom-Lid)
     pushEdge(cache,
-             BR_.x - rx, BR_.y,
-             BL_.x + rx, BL_.y,
-             +bot.curvature, maxBow, bezierRes);
+             BR_.x - rx_B, BR_.y,
+             BL_.x + rx_B, BL_.y,
+             -bot.curvature, maxBow, bezierRes);
 
     // Unten-Links Bogen
     // signX=−1, signY=+1
-    pushArc(cache, BL_.x, BL_.y, 1.0f, -1.0f, rx, ry_BL, bezierRes);
+    pushArc(cache, BL_.x, BL_.y, 1.0f, -1.0f, rx_B, ry_BL, bezierRes);
 
     // Linke Kante
-    cache.pts.push_back({ BL_.x, BL_.y - ry_BL });
-    cache.pts.push_back({ TL_.x, TL_.y + ry_TL });
+    cache.pts.push_back({BL_.x, BL_.y - ry_BL});
+    cache.pts.push_back({TL_.x, TL_.y + ry_TL});
 }
 
 void EyeRenderer::pushArc(EyeRenderCache &cache,
-                    float cornerX, float cornerY,
-                    float signX, float signY,
-                    float rx, float ry,
-                    int steps)
+                          float cornerX, float cornerY,
+                          float signX, float signY,
+                          float rx, float ry,
+                          int steps)
 {
-    for (int i = 0; i <= steps; i++) {
-        float t  = (float)i / (float)steps * (M_PI * 0.5f);
-        float x  = cornerX + signX * rx * (1.0f - cosf(t));
-        float y  = cornerY + signY * ry * (1.0f - sinf(t));
+    for (int i = 0; i <= steps; i++)
+    {
+        float t = (float)i / (float)steps * (M_PI * 0.5f);
+        float x = cornerX + signX * rx * (1.0f - cosf(t));
+        float y = cornerY + signY * ry * (1.0f - sinf(t));
         cache.pts.push_back({x, y});
     }
 }
 
 void EyeRenderer::pushEdge(EyeRenderCache &cache,
-                     float x0, float y0,
-                     float x1, float y1,
-                     float bow, float maxBow,
-                     int steps)
+                           float x0, float y0,
+                           float x1, float y1,
+                           float bow, float maxBow,
+                           int steps)
 {
     // Senkrechte zur Kante (normalisiert)
-    float dx   = x1 - x0, dy = y1 - y0;
-    float len  = sqrtf(dx*dx + dy*dy);
-    if (len < 0.001f) return;
-    float perpX = -dy / len;   // 90° linksdrehend
-    float perpY =  dx / len;
+    float dx = x1 - x0, dy = y1 - y0;
+    float len = sqrtf(dx * dx + dy * dy);
+    if (len < 0.001f)
+        return;
+    float perpX = -dy / len; // 90° linksdrehend
+    float perpY = dx / len;
 
-    for (int i = 0; i <= steps; i++) {
-        float t   = (float)i / (float)steps;
-        float b   = 4.0f * t * (1.0f - t) * bow * maxBow; // parabolisch
-        float x   = x0 + dx * t + perpX * b;
-        float y   = y0 + dy * t + perpY * b;
+    for (int i = 0; i <= steps; i++)
+    {
+        float t = (float)i / (float)steps;
+        float b = 4.0f * t * (1.0f - t) * bow * maxBow; // parabolisch
+        float x = x0 + dx * t + perpX * b;
+        float y = y0 + dy * t + perpY * b;
         cache.pts.push_back({x, y});
     }
 }
@@ -373,10 +381,12 @@ void EyeRenderer::toScreenSpace(std::vector<Point> &pts, const EyeEmotion &e)
 
     for (auto &p : pts)
     {
-        p.x *= (MAX_W - 2);
-        p.y *= (MAX_H - 2);
+        p.y = -p.y + 1.0f;
 
-        p.y = (MAX_H - 2) - p.y; // Y-flip
+        p.x *= (MAX_W - 1);
+        p.y *= (MAX_H - 1);
+
+        p.y = (MAX_H - 1) - p.y; // Y-flip
 
         p.x += offsetX - (MAX_W / 2);
         p.y += offsetY - (MAX_H / 2);

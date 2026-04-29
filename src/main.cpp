@@ -16,7 +16,7 @@ uint16_t joyYmax;
 Point joy = {0, 0};
 
 unsigned long emoMillis = 0;
-int emoIndex = 0;
+int emoIndex = 17;
 
 // FPS stuff
 unsigned long fpsMillis = 0;
@@ -27,7 +27,7 @@ bool switching;
 // unsigned long fps_currentMillis;
 
 void printFPS();
-/* void switchEmotion(EyeRenderer &eye); */
+void switchEmotion(EyeRenderer &eye);
 void nextEmotion();
 void previousEmotion();
 void handleSerialCommand(const String &line);
@@ -75,7 +75,7 @@ void loop()
 
     eyes.lookAt(joy.y, joy.x);
 
-    /*
+    
     if (joy.x > 0.50f && !switching)
     {
         switching = true;
@@ -93,7 +93,7 @@ void loop()
         switching = false;
     }
 
-    if (millis() - emoMillis >= 5000)
+/*     if (millis() - emoMillis >= 5000)
     {
         nextEmotion();
         switchEmotion(eyes);
@@ -104,7 +104,7 @@ void loop()
 
     printFPS();
 }
-/* 
+
 void switchEmotion(EyeRenderer &eyes)
 {
     switch (emoIndex)
@@ -174,7 +174,7 @@ void switchEmotion(EyeRenderer &eyes)
         break;
     }
 }
- */
+
 void nextEmotion()
 {
     emoIndex++;

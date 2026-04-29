@@ -62,7 +62,7 @@ private:
     // lgfx::colors_t pupilColors;
 
     // Geometry
-    void buildEyeShape(EyeRenderCache &cache, const EyeEmotion &emo);
+    void buildEyeShape(EyeRenderCache &cache, const EyeEmotion &emo, float convergenceOffsetX);
     void pushArc(EyeRenderCache &cache, float cornerX, float cornerY, float signX, float signY, float rx, float ry, int steps = 6);
     void pushEdge(EyeRenderCache &cache, float x0, float y0, float x1, float y1, float bow, float maxBow, int steps = 12);
     void transformShape(std::vector<Point> &pts, const EyeEmotion &e);
@@ -74,7 +74,7 @@ private:
 
     // Cache
     // void interpolateEyeState(EyeState &eye, EyeState &target, float speed = 0.1f);
-    void updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo);
+    void updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo, float convergenceOffsetX);
     bool hasChanged(const Point &a, const Point &b, float eps = 0.001f);
 
     // Draw
