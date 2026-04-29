@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "../LGFX_SPI_ST7789.h"
 
-constexpr uint8_t NUM_EMOTIONS = 21;
+constexpr uint8_t NUM_EMOTIONS = 2;
 
 struct Point
 {
@@ -27,28 +27,28 @@ struct Color
     uint8_t b;
 };
 
-struct EmotionLayer
-{
-    const BezierLine* shape;
-    float weight;
+struct EyelidParams {
+    float openness;
+    float curvature;
+    float tilt;
+    float roundness;
 };
 
 struct EyeEmotion
 {
-    const BezierLine* shape;
-    float weight;
-
-    Point scale;
     Point offset;
     float rotation;
-
+    Point scale;
     bool flipX;
 
     bool hasColorOverride;
     Color color;
 
-    float pupilSize; // -1 = nicht überschreiben
-    Point gaze; // <= 0 = nicht überschreiben
+    float pupilSize; // 0 = nicht überschreiben
+    Point gaze; // 0 = nicht überschreiben
+
+    EyelidParams top;
+    EyelidParams bottom;
 };
 
 struct Emotion
@@ -82,11 +82,10 @@ struct EyeRenderCache
     std::vector<std::vector<Edge>> ET;
     std::vector<Edge> AET;
 
-    int minY, maxY;
+    int minY = 0;
+    int maxY = 0;
 
-    EyeEmotion lastEmo;
-    const BezierLine* lastShape;
-    const BezierLine* prevShape;
-    float lastWeight;
+    EyeEmotion lastEmo = {};
+
     bool dirty = true;
 };

@@ -1,3 +1,5 @@
+//main.cpp
+
 #include "render/EyeRenderer.h"
 
 static LGFX tft;
@@ -25,7 +27,7 @@ bool switching;
 // unsigned long fps_currentMillis;
 
 void printFPS();
-void switchEmotion(EyeRenderer &eye);
+/* void switchEmotion(EyeRenderer &eye); */
 void nextEmotion();
 void previousEmotion();
 void handleSerialCommand(const String &line);
@@ -46,10 +48,6 @@ void setup()
     fpsMillis = emoMillis;
 
     switching = false;
-    joyXmin = analogRead(JOY_X_PIN);
-    joyXmax = analogRead(JOY_X_PIN);
-    joyYmin = analogRead(JOY_Y_PIN);
-    joyYmax = analogRead(JOY_Y_PIN);
 }
 
 void loop()
@@ -69,14 +67,15 @@ void loop()
         }
     }
 
-    joy.x = (joy.x, joyXmin, joyXmax, -1, 1);
-
     joy.x = (((float)analogRead(JOY_X_PIN) - 2047.5f) / 2047.5f) * -1;
     joy.y = (((float)analogRead(JOY_Y_PIN) - 2047.5f) / 2047.5f) * -1;
 
     joy.x = constrain(joy.x, -1, 1);
     joy.y = constrain(joy.y, -1, 1);
 
+    eyes.lookAt(joy.y, joy.x);
+
+    /*
     if (joy.x > 0.50f && !switching)
     {
         switching = true;
@@ -94,20 +93,18 @@ void loop()
         switching = false;
     }
 
-    eyes.lookAt(joy.y, joy.x);
-
     if (millis() - emoMillis >= 5000)
     {
         nextEmotion();
         switchEmotion(eyes);
         emoMillis = millis();
-    }
+    } */
 
     eyes.drawFace(24, 100);
 
     printFPS();
 }
-
+/* 
 void switchEmotion(EyeRenderer &eyes)
 {
     switch (emoIndex)
@@ -177,7 +174,7 @@ void switchEmotion(EyeRenderer &eyes)
         break;
     }
 }
-
+ */
 void nextEmotion()
 {
     emoIndex++;

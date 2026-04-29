@@ -140,35 +140,14 @@ void EyeRenderer::updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo)
         hasChanged(emo.offset, cache.lastEmo.offset) ||
         hasChanged(emo.scale, cache.lastEmo.scale) ||
         fabs(emo.rotation - cache.lastEmo.rotation) > 0.001f ||
-        emo.flipX != cache.lastEmo.flipX ||
-        emo.shape != cache.lastShape ||
-        fabs(emo.weight - cache.lastWeight) > 0.001f;
+        emo.flipX != cache.lastEmo.flipX;
 
     if (!changed)
         return;
 
-    BezierLine finalShape[BEZIER_COUNT];
-    const BezierLine *a = cache.prevShape ? cache.prevShape : shape_base;
-    const BezierLine *b = emo.shape ? emo.shape : shape_base;
-
-    //memcpy(finalShape, a, sizeof(BezierLine) * BEZIER_COUNT);
-
-    for (int i = 0; i < BEZIER_COUNT; i++)
-    {
-        finalShape[i] = lerp(a[i], b[i], emo.weight);
-    }
-
-    /*     if (emo.shape && emo.weight > 0.001f)
-        {
-            Serial.println("MORPH!!!");
-            morphShape(finalShape, finalShape, emo.shape, emo.weight);
-        } */
-
-    if (emo.weight > 0.99f)
-        cache.prevShape = emo.shape;
-
-    transformShape(finalShape, emo);
-    buildShape(finalShape, bezierRes, cache.pts);
+    buildEyeShape(cache, emo);
+    transformShape(cache.pts, emo);
+    // buildShape(finalShape, bezierRes, cache.pts);
 
     toScreenSpace(cache.pts, emo);
     buildEdgeTable(cache);
@@ -177,8 +156,8 @@ void EyeRenderer::updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo)
     cache.lastEmo.scale = emo.scale;
     cache.lastEmo.rotation = emo.rotation;
     cache.lastEmo.flipX = emo.flipX;
-    cache.lastShape = emo.shape;
-    cache.lastWeight = emo.weight;
+
+    cache.lastEmo = emo;
 
     cache.dirty = false;
 }
@@ -196,7 +175,7 @@ void EyeRenderer::applyEmotion(Emotion &current, const Emotion &target, float t)
     current.gaze = lerp(current.gaze, target.gaze, t);
     current.pupilSize = lerp(current.pupilSize, target.pupilSize, t);
 
-    applyEyeEmotion(current.left,  target.left,  _cacheL, t);
+    applyEyeEmotion(current.left, target.left, _cacheL, t);
     applyEyeEmotion(current.right, target.right, _cacheR, t);
 
     // color
@@ -211,19 +190,20 @@ void EyeRenderer::applyEmotion(Emotion &current, const Emotion &target, float t)
 
 void EyeRenderer::applyEyeEmotion(EyeEmotion &current, const EyeEmotion &target, EyeRenderCache &cache, float t)
 {
-
-    if (current.shape != target.shape)
-    {
-        cache.prevShape = current.shape ? current.shape : shape_base;
-        current.shape   = target.shape;
-        current.weight  = 0.0f;
-    }
-
-    current.weight   = lerp(current.weight,   target.weight,   t);
-    current.scale    = lerp(current.scale,    target.scale,    t);
-    current.offset   = lerp(current.offset,   target.offset,   t);
+    current.scale = lerp(current.scale, target.scale, t);
+    current.offset = lerp(current.offset, target.offset, t);
     current.rotation = lerp(current.rotation, target.rotation, t);
-    current.flipX    = target.flipX;
+    current.flipX = target.flipX;
+
+    current.top.openness = lerp(current.top.openness, target.top.openness, t);
+    current.top.curvature = lerp(current.top.curvature, target.top.curvature, t);
+    current.top.tilt = lerp(current.top.tilt, target.top.tilt, t);
+    current.top.roundness = lerp(current.top.roundness, target.top.roundness, t);
+
+    current.bottom.openness = lerp(current.bottom.openness, target.bottom.openness, t);
+    current.bottom.curvature = lerp(current.bottom.curvature, target.bottom.curvature, t);
+    current.bottom.tilt = lerp(current.bottom.tilt, target.bottom.tilt, t);
+    current.bottom.roundness = lerp(current.bottom.roundness, target.bottom.roundness, t);
 }
 
 bool EyeRenderer::hasChanged(const Point &a, const Point &b, float eps)
@@ -233,51 +213,124 @@ bool EyeRenderer::hasChanged(const Point &a, const Point &b, float eps)
 
 // --- Private – Geometry ------------------------------------------------------
 
-void EyeRenderer::sampleBezier(const BezierLine &b, std::vector<Point> &pts, uint8_t steps)
+void EyeRenderer::buildEyeShape(EyeRenderCache &cache, const EyeEmotion &emo)
 {
-    for (int i = 0; i <= steps; i++)
-    {
-        float t = i / (float)steps;
+    cache.pts.clear();
 
-        float u = 1.0f - t;
+    const float cx = 0.5;   // Mittelpunkt X
+    const float cy = 0.5;   // Mittelpunkt Y
+    const float W  = 1.0;    // Breite
+    const float H  = 1.0;    // Höhe (bei voller Öffnung)
 
-        float x =
-            u * u * u * b.ps.x +
-            3 * u * u * t * b.c1.x +
-            3 * u * t * t * b.c2.x +
-            t * t * t * b.pe.x;
+    const float hw = W * 0.5f;
+    const float hh = H * 0.5f;
 
-        float y =
-            u * u * u * b.ps.y +
-            3 * u * u * t * b.c1.y +
-            3 * u * t * t * b.c2.y +
-            t * t * t * b.pe.y;
+    const EyelidParams &top = emo.top;
+    const EyelidParams &bot = emo.bottom;
 
-        pts.push_back({x, y});
+    // Vier Ecken berechnen (openness + tilt)
+
+    float topOpen = hh * top.openness;
+    float botOpen = hh * bot.openness;
+
+    Point TL_ = { cx - hw,  cy - topOpen + top.tilt * H };
+    Point TR_ = { cx + hw,  cy - topOpen - top.tilt * H };
+    Point BL_ = { cx - hw,  cy + botOpen + bot.tilt * H };
+    Point BR_ = { cx + hw,  cy + botOpen - bot.tilt * H };
+
+    // Roundness
+
+    float midY_L = (TL_.y + BL_.y) * 0.5f;
+    float midY_R = (TR_.y + BR_.y) * 0.5f;
+
+    float rx     = hw * top.roundness;   // top.roundness als "globaler" border-radius
+    float ry_TL  = fabsf(TL_.y - midY_L) * top.roundness;
+    float ry_TR  = fabsf(TR_.y - midY_R) * top.roundness;
+    float ry_BL  = fabsf(BL_.y - midY_L) * bot.roundness;
+    float ry_BR  = fabsf(BR_.y - midY_R) * bot.roundness;
+
+    // Begrenzung
+    float maxRx  = hw;
+    if (rx  > maxRx)  rx  = maxRx;
+
+    // Maximale Biegung für curvature
+
+    const float maxBow = hh * 0.5f;  // = H/4, entspricht "bis zur Hälfte"
+
+    // Oben-Links Bogen
+
+    pushArc(cache, TL_.x, TL_.y, 1.0f, 1.0f, rx, ry_TL, bezierRes);
+
+    // Obere Kante (Top-Lid)
+    pushEdge(cache,
+             TL_.x + rx, TL_.y,
+             TR_.x - rx, TR_.y,
+             -top.curvature, maxBow, bezierRes);
+
+    // Oben-Rechts Bogen
+
+    pushArc(cache, TR_.x, TR_.y, -1.0f, 1.0f, rx, ry_TR, bezierRes);
+
+    // Rechte Kante
+    cache.pts.push_back({ TR_.x, TR_.y + ry_TR });
+    cache.pts.push_back({ BR_.x, BR_.y - ry_BR });
+
+    // Unten-Rechts Bogen
+
+    pushArc(cache, BR_.x, BR_.y, -1.0f, -1.0f, rx, ry_BR, bezierRes);
+
+    // Untere Kante (Bottom-Lid)
+    pushEdge(cache,
+             BR_.x - rx, BR_.y,
+             BL_.x + rx, BL_.y,
+             +bot.curvature, maxBow, bezierRes);
+
+    // Unten-Links Bogen
+    // signX=−1, signY=+1
+    pushArc(cache, BL_.x, BL_.y, 1.0f, -1.0f, rx, ry_BL, bezierRes);
+
+    // Linke Kante
+    cache.pts.push_back({ BL_.x, BL_.y - ry_BL });
+    cache.pts.push_back({ TL_.x, TL_.y + ry_TL });
+}
+
+void EyeRenderer::pushArc(EyeRenderCache &cache,
+                    float cornerX, float cornerY,
+                    float signX, float signY,
+                    float rx, float ry,
+                    int steps)
+{
+    for (int i = 0; i <= steps; i++) {
+        float t  = (float)i / (float)steps * (M_PI * 0.5f);
+        float x  = cornerX + signX * rx * (1.0f - cosf(t));
+        float y  = cornerY + signY * ry * (1.0f - sinf(t));
+        cache.pts.push_back({x, y});
     }
 }
 
-void EyeRenderer::buildShape(BezierLine *shape, int steps, std::vector<Point> &pts)
+void EyeRenderer::pushEdge(EyeRenderCache &cache,
+                     float x0, float y0,
+                     float x1, float y1,
+                     float bow, float maxBow,
+                     int steps)
 {
-    pts.clear();
-    for (int i = 0; i < BEZIER_COUNT; i++)
-        sampleBezier(shape[i], pts, steps);
+    // Senkrechte zur Kante (normalisiert)
+    float dx   = x1 - x0, dy = y1 - y0;
+    float len  = sqrtf(dx*dx + dy*dy);
+    if (len < 0.001f) return;
+    float perpX = -dy / len;   // 90° linksdrehend
+    float perpY =  dx / len;
+
+    for (int i = 0; i <= steps; i++) {
+        float t   = (float)i / (float)steps;
+        float b   = 4.0f * t * (1.0f - t) * bow * maxBow; // parabolisch
+        float x   = x0 + dx * t + perpX * b;
+        float y   = y0 + dy * t + perpY * b;
+        cache.pts.push_back({x, y});
+    }
 }
 
-void EyeRenderer::morphShape(BezierLine *out, const BezierLine *base,
-                             const BezierLine *target, float t)
-{
-    for (int i = 0; i < BEZIER_COUNT; i++)
-        out[i] = lerp(base[i], target[i], t);
-}
-
-void EyeRenderer::blendShapes(BezierLine *out, const EyeEmotion &emo)
-{
-    memcpy(out, shape_base, sizeof(BezierLine) * BEZIER_COUNT);
-    morphShape(out, out, emo.shape, emo.weight);
-}
-
-void EyeRenderer::transformShape(BezierLine *shape, const EyeEmotion &e)
+void EyeRenderer::transformShape(std::vector<Point> &pts, const EyeEmotion &e)
 {
     float sx = e.scale.x;
     float sy = e.scale.y;
@@ -307,12 +360,9 @@ void EyeRenderer::transformShape(BezierLine *shape, const EyeEmotion &e)
         p.y = m10 * x + m11 * y + ty;
     };
 
-    for (int i = 0; i < BEZIER_COUNT; i++)
+    for (auto &p : pts)
     {
-        transform(shape[i].ps);
-        transform(shape[i].pe);
-        transform(shape[i].c1);
-        transform(shape[i].c2);
+        transform(p);
     }
 }
 
@@ -330,6 +380,12 @@ void EyeRenderer::toScreenSpace(std::vector<Point> &pts, const EyeEmotion &e)
 
         p.x += offsetX - (MAX_W / 2);
         p.y += offsetY - (MAX_H / 2);
+
+        p.y = max((int)p.y, 0);
+        p.y = min((int)p.y, MAX_H);
+
+        p.x = max((int)p.x, 0);
+        p.x = min((int)p.x, MAX_W);
     }
 }
 

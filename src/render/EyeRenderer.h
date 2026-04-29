@@ -25,11 +25,10 @@ public:
     void becomeHappy();
     void idle();
 
-    void setEmotion(const Emotion& emo);
+    void setEmotion(const Emotion &emo);
     void setThemeColor(Color color);
-    
 
-    int bezierRes = 5;
+    int bezierRes = 12;
 
 private:
     LGFX &_tft;
@@ -60,14 +59,13 @@ private:
             {0, 0, 0},
     };
 
-    //lgfx::colors_t pupilColors;
+    // lgfx::colors_t pupilColors;
 
     // Geometry
-    void sampleBezier(const BezierLine &b, std::vector<Point> &pts, uint8_t steps);
-    void buildShape(BezierLine *shape, int steps, std::vector<Point> &pts);
-    void blendShapes(BezierLine *out, const EyeEmotion &emo);
-    void morphShape(BezierLine *out, const BezierLine *base, const BezierLine *target, float t);
-    void transformShape(BezierLine *shape, const EyeEmotion &e);
+    void buildEyeShape(EyeRenderCache &cache, const EyeEmotion &emo);
+    void pushArc(EyeRenderCache &cache, float cornerX, float cornerY, float signX, float signY, float rx, float ry, int steps = 6);
+    void pushEdge(EyeRenderCache &cache, float x0, float y0, float x1, float y1, float bow, float maxBow, int steps = 12);
+    void transformShape(std::vector<Point> &pts, const EyeEmotion &e);
     void toScreenSpace(std::vector<Point> &pts, const EyeEmotion &e);
 
     // Rasterizer
@@ -75,7 +73,7 @@ private:
     void fillPolygonET(EyeRenderCache &cache, LGFX_Sprite &spr, uint16_t color);
 
     // Cache
-    //void interpolateEyeState(EyeState &eye, EyeState &target, float speed = 0.1f);
+    // void interpolateEyeState(EyeState &eye, EyeState &target, float speed = 0.1f);
     void updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo);
     bool hasChanged(const Point &a, const Point &b, float eps = 0.001f);
 
