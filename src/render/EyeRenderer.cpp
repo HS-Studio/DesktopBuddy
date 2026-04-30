@@ -10,9 +10,9 @@ EyeRenderer::EyeRenderer(LGFX &tft)
       _maskSprite(&tft),
       _radialGradient(&tft)
 {
-    eyePair.current = emo_neutral;
-    eyePair.target = emo_angry;
-    eyePair.convergence = 0.5f;
+    eyePair.current = emo_blink_low;
+    eyePair.target = emo_neutral;
+    eyePair.convergence = 0.4f;
 }
 
 void EyeRenderer::begin()
