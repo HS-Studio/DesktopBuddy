@@ -15,8 +15,10 @@ uint16_t joyYmax;
 
 Point joy = {0, 0};
 
+
+
 unsigned long emoMillis = 0;
-int emoIndex = 17;
+int emoIndex = 0;
 
 // FPS stuff
 unsigned long fpsMillis = 0;
@@ -27,9 +29,10 @@ bool switching;
 // unsigned long fps_currentMillis;
 
 void printFPS();
-void switchEmotion(EyeRenderer &eye);
+
 void nextEmotion();
 void previousEmotion();
+
 void handleSerialCommand(const String &line);
 
 void setup()
@@ -80,13 +83,12 @@ void loop()
     {
         switching = true;
         nextEmotion();
-        switchEmotion(eyes);
+
     }
     else if (joy.x < -0.50f && !switching)
     {
         switching = true;
         previousEmotion();
-        switchEmotion(eyes);
     }
     else if (abs(joy.x) < 0.20f) // Deadzone in der Mitte
     {
@@ -105,88 +107,16 @@ void loop()
     printFPS();
 }
 
-void switchEmotion(EyeRenderer &eyes)
-{
-    switch (emoIndex)
-    {
-    case 0:
-        eyes.setEmotion(emo_neutral);
-        break;
-    case 1:
-        eyes.setEmotion(emo_blink_high);
-        break;
-    case 2:
-        eyes.setEmotion(emo_happy);
-        break;
-    case 3:
-        eyes.setEmotion(emo_glee);
-        break;
-    case 4:
-        eyes.setEmotion(emo_blink_low);
-        break;
-    case 5:
-        eyes.setEmotion(emo_sad_down);
-        break;
-    case 6:
-        eyes.setEmotion(emo_sad_up);
-        break;
-    case 7:
-        eyes.setEmotion(emo_worried);
-        break;
-    case 8:
-        eyes.setEmotion(emo_focused);
-        break;
-    case 9:
-        eyes.setEmotion(emo_annoyed);
-        break;
-    case 10:
-        eyes.setEmotion(emo_surprised);
-        break;
-    case 11:
-        eyes.setEmotion(emo_skeptic);
-        break;
-    case 12:
-        eyes.setEmotion(emo_frustrated);
-        break;
-    case 13:
-        eyes.setEmotion(emo_unimpressed);
-        break;
-    case 14:
-        eyes.setEmotion(emo_sleepy);
-        break;
-    case 15:
-        eyes.setEmotion(emo_suspicious);
-        break;
-    case 16:
-        eyes.setEmotion(emo_squint);
-        break;
-    case 17:
-        eyes.setEmotion(emo_angry);
-        break;
-    case 18:
-        eyes.setEmotion(emo_furious);
-        break;
-    case 19:
-        eyes.setEmotion(emo_scared);
-        break;
-    case 20:
-        eyes.setEmotion(emo_awe);
-        break;
-    }
-}
-
 void nextEmotion()
 {
-    emoIndex++;
-    if (emoIndex > NUM_EMOTIONS - 1)
-        emoIndex = 0;
+    emoIndex = (emoIndex + 1) % NUM_EMOTIONS;
+    eyes.setEmotion(*emotions[emoIndex]);
 }
 
 void previousEmotion()
 {
-    emoIndex--;
-    if (emoIndex == -1)
-        emoIndex = NUM_EMOTIONS - 1;
+    emoIndex = (emoIndex - 1 + NUM_EMOTIONS) % NUM_EMOTIONS;
+    eyes.setEmotion(*emotions[emoIndex]);
 }
 
 void printFPS()

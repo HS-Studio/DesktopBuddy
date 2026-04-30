@@ -834,3 +834,28 @@ const Emotion emo_awe{
                     .roundness = 0.7f,
                 },
         }};
+
+// all emotions
+const Emotion* emotions[NUM_EMOTIONS] = {
+    &emo_neutral,
+    &emo_blink_high,
+    &emo_happy,
+    &emo_glee,
+    &emo_blink_low,
+    &emo_sad_down,
+    &emo_sad_up,
+    &emo_worried,
+    &emo_focused,
+    &emo_annoyed,
+    &emo_surprised,
+    &emo_skeptic,
+    &emo_frustrated,
+    &emo_unimpressed,
+    &emo_sleepy,
+    &emo_suspicious,
+    &emo_squint,
+    &emo_angry,
+    &emo_furious,
+    &emo_scared,
+    &emo_awe,
+};

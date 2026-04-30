@@ -1,6 +1,5 @@
 #pragma once
 
-#include "shapes.h"
 #include "../data/structs.h"
 
 extern const Emotion emo_neutral;
@@ -24,3 +23,5 @@ extern const Emotion emo_angry;
 extern const Emotion emo_furious;
 extern const Emotion emo_scared;
 extern const Emotion emo_awe;
+
+extern const Emotion* emotions[NUM_EMOTIONS];

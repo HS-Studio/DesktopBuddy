@@ -2,7 +2,6 @@
 
 #include <vector>
 #include <stdint.h>
-#include "../expressions/shapes.h"
 #include "../expressions/emotions.h"
 #include "../LGFX_SPI_ST7789.h"
 
@@ -91,6 +90,5 @@ private:
     float lerp(float a, float b, float t);
     Point lerp(const Point &a, const Point &b, float t);
     uint8_t lerp(uint8_t a, uint8_t b, float t);
-    BezierLine lerp(const BezierLine &a, const BezierLine &b, float t);
     Color lerpColor(const Color &a, const Color &b, float t);
 };

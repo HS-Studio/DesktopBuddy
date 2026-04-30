@@ -564,12 +564,6 @@ uint8_t EyeRenderer::lerp(uint8_t a, uint8_t b, float t)
     return (uint8_t)(a + (b - a) * t);
 }
 
-BezierLine EyeRenderer::lerp(const BezierLine &a, const BezierLine &b, float t)
-{
-    return {lerp(a.ps, b.ps, t), lerp(a.pe, b.pe, t),
-            lerp(a.c1, b.c1, t), lerp(a.c2, b.c2, t)};
-}
-
 Color EyeRenderer::lerpColor(const Color &a, const Color &b, float t)
 {
     return {lerp(a.r, b.r, t), lerp(a.g, b.g, t), lerp(a.b, b.b, t)};

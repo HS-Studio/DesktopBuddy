@@ -12,14 +12,6 @@ struct Point
     float y;
 };
 
-struct BezierLine
-{
-    Point ps;
-    Point pe;
-    Point c1;
-    Point c2;
-};
-
 struct Color
 {
     uint8_t r;
