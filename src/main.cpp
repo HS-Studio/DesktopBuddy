@@ -1,3 +1,5 @@
+//main.cpp
+
 #include "render/EyeRenderer.h"
 
 static LGFX tft;
@@ -25,9 +27,10 @@ bool switching;
 // unsigned long fps_currentMillis;
 
 void printFPS();
-void switchEmotion(EyeRenderer &eye);
+
 void nextEmotion();
 void previousEmotion();
+
 void handleSerialCommand(const String &line);
 
 void setup()
@@ -46,10 +49,6 @@ void setup()
     fpsMillis = emoMillis;
 
     switching = false;
-    joyXmin = analogRead(JOY_X_PIN);
-    joyXmax = analogRead(JOY_X_PIN);
-    joyYmin = analogRead(JOY_Y_PIN);
-    joyYmax = analogRead(JOY_Y_PIN);
 }
 
 void loop()
@@ -69,127 +68,52 @@ void loop()
         }
     }
 
-    joy.x = (joy.x, joyXmin, joyXmax, -1, 1);
-
     joy.x = (((float)analogRead(JOY_X_PIN) - 2047.5f) / 2047.5f) * -1;
     joy.y = (((float)analogRead(JOY_Y_PIN) - 2047.5f) / 2047.5f) * -1;
 
     joy.x = constrain(joy.x, -1, 1);
     joy.y = constrain(joy.y, -1, 1);
 
+    eyes.lookAt(joy.y, joy.x);
+
     if (joy.x > 0.50f && !switching)
     {
         switching = true;
         nextEmotion();
-        switchEmotion(eyes);
+
     }
     else if (joy.x < -0.50f && !switching)
     {
         switching = true;
         previousEmotion();
-        switchEmotion(eyes);
     }
     else if (abs(joy.x) < 0.20f) // Deadzone in der Mitte
     {
         switching = false;
     }
 
-    eyes.lookAt(joy.y, joy.x);
-
-    if (millis() - emoMillis >= 5000)
+/*     if (millis() - emoMillis >= 5000)
     {
         nextEmotion();
         switchEmotion(eyes);
         emoMillis = millis();
-    }
+    } */
 
     eyes.drawFace(24, 100);
 
     printFPS();
 }
 
-void switchEmotion(EyeRenderer &eyes)
-{
-    switch (emoIndex)
-    {
-    case 0:
-        eyes.setEmotion(emo_neutral);
-        break;
-    case 1:
-        eyes.setEmotion(emo_blink_high);
-        break;
-    case 2:
-        eyes.setEmotion(emo_happy);
-        break;
-    case 3:
-        eyes.setEmotion(emo_glee);
-        break;
-    case 4:
-        eyes.setEmotion(emo_blink_low);
-        break;
-    case 5:
-        eyes.setEmotion(emo_sad_down);
-        break;
-    case 6:
-        eyes.setEmotion(emo_sad_up);
-        break;
-    case 7:
-        eyes.setEmotion(emo_worried);
-        break;
-    case 8:
-        eyes.setEmotion(emo_focused);
-        break;
-    case 9:
-        eyes.setEmotion(emo_annoyed);
-        break;
-    case 10:
-        eyes.setEmotion(emo_surprised);
-        break;
-    case 11:
-        eyes.setEmotion(emo_skeptic);
-        break;
-    case 12:
-        eyes.setEmotion(emo_frustrated);
-        break;
-    case 13:
-        eyes.setEmotion(emo_unimpressed);
-        break;
-    case 14:
-        eyes.setEmotion(emo_sleepy);
-        break;
-    case 15:
-        eyes.setEmotion(emo_suspicious);
-        break;
-    case 16:
-        eyes.setEmotion(emo_squint);
-        break;
-    case 17:
-        eyes.setEmotion(emo_angry);
-        break;
-    case 18:
-        eyes.setEmotion(emo_furious);
-        break;
-    case 19:
-        eyes.setEmotion(emo_scared);
-        break;
-    case 20:
-        eyes.setEmotion(emo_awe);
-        break;
-    }
-}
-
 void nextEmotion()
 {
-    emoIndex++;
-    if (emoIndex > NUM_EMOTIONS - 1)
-        emoIndex = 0;
+    emoIndex = (emoIndex + 1) % NUM_EMOTIONS;
+    eyes.setEmotion(*emotions[emoIndex]);
 }
 
 void previousEmotion()
 {
-    emoIndex--;
-    if (emoIndex == -1)
-        emoIndex = NUM_EMOTIONS - 1;
+    emoIndex = (emoIndex - 1 + NUM_EMOTIONS) % NUM_EMOTIONS;
+    eyes.setEmotion(*emotions[emoIndex]);
 }
 
 void printFPS()
