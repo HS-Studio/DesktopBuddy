@@ -23,23 +23,17 @@ void EyeRenderer::begin()
     _eyeRSprite.setColorDepth(16);
     _eyeRSprite.createSprite(MAX_W, MAX_H);
 
-    _maskSprite.setColorDepth(16);
-    _maskSprite.createSprite(MAX_W, MAX_H);
-
     _radialGradient.setColorDepth(16);
     _radialGradient.createSprite(MAX_W, MAX_H);
-    fillGradient();
-    //_radialGradient.fillGradientRect(0, 0, MAX_W, MAX_H, pupilColors);
+
 
     _cacheL.dirty = true;
     _cacheR.dirty = true;
 
     setThemeColor({25, 200, 200});
     buildGradient(pupilGradient, themeColor);
-
     _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
     fillGradient();
-    //_radialGradient.fillGradientRect(0, 0, MAX_W, MAX_H, pupilColors);
 }
 
 // --- Public ------------------------------------------------------------------
@@ -105,8 +99,9 @@ void EyeRenderer::drawEye(LGFX_Sprite &eyeSpr, EyeEmotion &emo, EyeRenderCache &
                           uint16_t screen_x, uint16_t screen_y)
 {
 
-    eyeSpr.fillSprite(toLGFX(pupilGradient[3]));
-    _maskSprite.fillSprite(TFT_BLACK);
+    // eyeSpr.fillSprite(toLGFX(pupilGradient[3]));
+    // eyeSpr.clear();
+    //_maskSprite.fillSprite(TFT_BLACK);
 
     updateShapeCache(cache, emo, convergenceOffsetX);
 
@@ -116,12 +111,92 @@ void EyeRenderer::drawEye(LGFX_Sprite &eyeSpr, EyeEmotion &emo, EyeRenderCache &
     int16_t ox = (emo.offset.x + convergenceOffsetX) * (MAX_W * 0.25f);
     int16_t oy = emo.offset.y * (MAX_H * 0.25f);
 
-    fillPolygonET(cache, _maskSprite, TFT_WHITE);
+    // fillPolygonET(cache, _maskSprite, TFT_WHITE);
+    //
+    //_radialGradient.pushSprite(&eyeSpr, gX + ox, gY + oy);
+    //_maskSprite.pushSprite(&eyeSpr, 0, 0, TFT_WHITE);
 
-    _radialGradient.pushSprite(&eyeSpr, gX + ox, gY + oy);
-    _maskSprite.pushSprite(&eyeSpr, 0, 0, TFT_WHITE);
-
+    fillEyeFromGradient(eyeSpr, cache, gX + ox, gY + oy);
     eyeSpr.pushSprite(screen_x, screen_y);
+}
+
+void EyeRenderer::fillEyeFromGradient(LGFX_Sprite &eyeSpr, EyeRenderCache &cache, int gradOffsetX, int gradOffsetY)
+{
+    uint16_t *gradBuf = (uint16_t *)_radialGradient.getBuffer();
+    uint16_t *eyeBuf = (uint16_t *)eyeSpr.getBuffer();
+
+    // eyeSpr.fillSprite(toLGFX(pupilGradient[3]));
+    eyeSpr.clear();
+
+    int yMin = MAX_H, yMax = 0;
+    for (auto &p : cache.pts)
+    {
+        int y = (int)p.y;
+        if (y < yMin)
+            yMin = y;
+        if (y > yMax)
+            yMax = y;
+    }
+    yMin = std::max(yMin, 0);
+    yMax = std::min(yMax, MAX_H - 1);
+
+    float xIntersections[16];
+    int xCount = 0;
+    int n = cache.pts.size();
+
+    for (int y = yMin; y <= yMax; y++)
+    {
+        float fy = (float)y + 0.5f;
+        xCount = 0;
+
+        for (int i = 0; i < n; i++)
+        {
+            const Point &p0 = cache.pts[i];
+            const Point &p1 = cache.pts[(i + 1) % n];
+
+            if ((p0.y <= fy && p1.y > fy) || (p1.y <= fy && p0.y > fy))
+            {
+                float t = (fy - p0.y) / (p1.y - p0.y);
+                xIntersections[xCount++] = p0.x + t * (p1.x - p0.x);
+            }
+        }
+
+        if (xCount < 2)
+            continue;
+
+        for (int a = 1; a < xCount; a++)
+        {
+            float v = xIntersections[a];
+            int b = a - 1;
+            while (b >= 0 && xIntersections[b] > v)
+            {
+                xIntersections[b + 1] = xIntersections[b];
+                b--;
+            }
+            xIntersections[b + 1] = v;
+        }
+
+        int gy = y - gradOffsetY;
+
+        for (int i = 0; i + 1 < xCount; i += 2)
+        {
+            int xLeft = std::max((int)xIntersections[i], 0);
+            int xRight = std::min((int)xIntersections[i + 1], MAX_W - 1);
+            if (xLeft > xRight)
+                continue;
+
+            for (int x = xLeft; x <= xRight; x++)
+            {
+                int gx = x - gradOffsetX;
+                if (gx < 0 || gx >= MAX_W || gy < 0 || gy >= MAX_H)
+                {
+                    eyeBuf[y * MAX_W + x] = gradBuf[0];
+                    continue;
+                }
+                eyeBuf[y * MAX_W + x] = gradBuf[gy * MAX_W + gx];
+            }
+        }
+    }
 }
 
 // --- Private – Cache ---------------------------------------------------------
@@ -129,10 +204,12 @@ void EyeRenderer::drawEye(LGFX_Sprite &eyeSpr, EyeEmotion &emo, EyeRenderCache &
 void EyeRenderer::updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo, float convergenceOffsetX)
 {
     bool changed =
-        cache.dirty ||
         hasChanged(emo.offset, cache.lastEmo.offset) ||
         hasChanged(emo.scale, cache.lastEmo.scale) ||
         fabs(emo.rotation - cache.lastEmo.rotation) > 0.001f ||
+        hasChanged(emo.gaze, cache.lastEmo.gaze) ||
+        fabs(emo.pupilSize - cache.lastEmo.pupilSize) > 0.001f ||
+        fabs(emo.bottom.roundness - cache.lastEmo.bottom.roundness) > 0.001f ||
         fabs(emo.top.openness - cache.lastEmo.top.openness) > 0.001f ||
         fabs(emo.top.curvature - cache.lastEmo.top.curvature) > 0.001f ||
         fabs(emo.top.tilt - cache.lastEmo.top.tilt) > 0.001f ||
@@ -144,8 +221,12 @@ void EyeRenderer::updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo,
         emo.flipX != cache.lastEmo.flipX;
 
     if (!changed)
+    {
+        cache.dirty = false;
         return;
+    }
 
+    cache.dirty = true;
     buildEyeShape(cache, emo, convergenceOffsetX);
     transformShape(cache.pts, emo);
     // buildShape(finalShape, bezierRes, cache.pts);
@@ -159,8 +240,6 @@ void EyeRenderer::updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo,
     cache.lastEmo.flipX = emo.flipX;
 
     cache.lastEmo = emo;
-
-    cache.dirty = false;
 }
 
 void EyeRenderer::buildGradient(Color *grad, Color target)
@@ -187,6 +266,11 @@ void EyeRenderer::applyEmotion(Emotion &current, const Emotion &target, float t)
         _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
         fillGradient();
     }
+}
+
+uint16_t EyeRenderer::colorToRGB565(const Color &c)
+{
+    return ((c.r & 0xF8) << 8) | ((c.g & 0xFC) << 3) | (c.b >> 3);
 }
 
 void EyeRenderer::applyEyeEmotion(EyeEmotion &current, const EyeEmotion &target, EyeRenderCache &cache, float t)

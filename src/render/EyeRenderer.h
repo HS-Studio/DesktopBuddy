@@ -80,11 +80,13 @@ private:
     void applyEmotion(Emotion &current, const Emotion &target, float t);
     void applyEyeEmotion(EyeEmotion &current, const EyeEmotion &target, EyeRenderCache &cache, float t);
     void drawEye(LGFX_Sprite &eyeSpr, EyeEmotion &emo, EyeRenderCache &cache, const Point &gaze, float convergenceOffsetX, uint16_t screen_x, uint16_t screen_y);
+    void fillEyeFromGradient(LGFX_Sprite &eyeSpr, EyeRenderCache &cache, int gradOffsetX, int gradOffsetY);
 
     // Color
     bool updateColor(Color &current, Color target, float speed = 0.1f);
     void fillGradient();
     inline lgfx::rgb888_t toLGFX(const Color &c);
+    uint16_t colorToRGB565(const Color& c);
 
     // Lerp helpers
     float lerp(float a, float b, float t);
