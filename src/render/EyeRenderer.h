@@ -26,6 +26,7 @@ public:
 
     void setEmotion(const Emotion &emo);
     void setThemeColor(Color color);
+    void setConvergence(float conv);
 
     int bezierRes = 12;
 
@@ -42,6 +43,7 @@ private:
 
     Color default_color;
     Color themeColor;
+    float convergence;
 
     // Cache
     EyeRenderCache _cacheL;
@@ -86,7 +88,6 @@ private:
     bool updateColor(Color &current, Color target, float speed = 0.1f);
     void fillGradient();
     inline lgfx::rgb888_t toLGFX(const Color &c);
-    uint16_t colorToRGB565(const Color& c);
 
     // Lerp helpers
     float lerp(float a, float b, float t);

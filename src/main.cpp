@@ -1,4 +1,4 @@
-//main.cpp
+// main.cpp
 
 #include "render/EyeRenderer.h"
 
@@ -15,8 +15,6 @@ uint16_t joyYmax;
 
 Point joy = {0, 0};
 
-
-
 unsigned long emoMillis = 0;
 int emoIndex = 0;
 
@@ -25,7 +23,10 @@ unsigned long fpsMillis = 0;
 uint16_t fpsCounter = 0;
 uint16_t fps = 0;
 
+float conver;
+
 bool switching;
+
 // unsigned long fps_currentMillis;
 
 void printFPS();
@@ -78,12 +79,10 @@ void loop()
 
     eyes.lookAt(joy.y, joy.x);
 
-    
     if (joy.x > 0.50f && !switching)
     {
         switching = true;
         nextEmotion();
-
     }
     else if (joy.x < -0.50f && !switching)
     {
@@ -95,12 +94,24 @@ void loop()
         switching = false;
     }
 
-/*     if (millis() - emoMillis >= 5000)
+/*     if (joy.y > 0.50f)
     {
-        nextEmotion();
-        switchEmotion(eyes);
-        emoMillis = millis();
+        conver += 0.01;
+        eyes.setConvergence(conver);
+    }
+    else if (joy.y < -0.50f)
+    {
+        conver -= 0.01;
+        eyes.setConvergence(conver);
     } */
+
+
+    /*     if (millis() - emoMillis >= 5000)
+        {
+            nextEmotion();
+            switchEmotion(eyes);
+            emoMillis = millis();
+        } */
 
     eyes.drawFace(24, 100);
 

@@ -48,6 +48,7 @@ struct Emotion
     EyeEmotion left;
     EyeEmotion right;
 
+    float convergence;
     Point gaze;
     float pupilSize;
     Color color;
@@ -57,8 +58,6 @@ struct EyePair
 {
     Emotion current;
     Emotion target;
-
-    float convergence;
 };
 
 struct Edge

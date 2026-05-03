@@ -12,7 +12,7 @@ EyeRenderer::EyeRenderer(LGFX &tft)
 {
     eyePair.current = emo_blink_low;
     eyePair.target = emo_neutral;
-    eyePair.convergence = 0.4f;
+    //eyePair.target.convergence = 0.4f;
 }
 
 void EyeRenderer::begin()
@@ -26,7 +26,6 @@ void EyeRenderer::begin()
     _radialGradient.setColorDepth(16);
     _radialGradient.createSprite(MAX_W, MAX_H);
 
-
     _cacheL.dirty = true;
     _cacheR.dirty = true;
 
@@ -34,6 +33,8 @@ void EyeRenderer::begin()
     buildGradient(pupilGradient, themeColor);
     _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
     fillGradient();
+
+    setConvergence(0.4f);
 }
 
 // --- Public ------------------------------------------------------------------
@@ -47,8 +48,8 @@ void EyeRenderer::drawFace(int screen_x, int screen_y)
     int16_t x = screen_x + eyePair.current.gaze.x * MAX_X;
     int16_t y = screen_y + eyePair.current.gaze.y * MAX_Y;
 
-    drawEye(_eyeLSprite, eyePair.current.left, _cacheL, eyePair.current.gaze, +eyePair.convergence, x, y);
-    drawEye(_eyeRSprite, eyePair.current.right, _cacheR, eyePair.current.gaze, -eyePair.convergence, x + MAX_W, y);
+    drawEye(_eyeLSprite, eyePair.current.left, _cacheL, eyePair.current.gaze, +eyePair.target.convergence, x, y);
+    drawEye(_eyeRSprite, eyePair.current.right, _cacheR, eyePair.current.gaze, -eyePair.target.convergence, x + MAX_W, y);
 
     // drawEye(_eyeLSprite, eyeL, _cacheL, eyeL.emotion.left, x, y);
     // drawEye(_eyeRSprite, eyeR, _cacheR, eyeR.emotion.right, x + MAX_W, y);
@@ -84,12 +85,24 @@ void EyeRenderer::setEmotion(const Emotion &emo)
         eyePair.target.color = emo.left.color;
     else
         eyePair.target.color = themeColor;
+    
+    setConvergence(convergence);
 }
 
 void EyeRenderer::setThemeColor(Color color)
 {
     themeColor = color;
     eyePair.target.color = themeColor;
+}
+
+void EyeRenderer::setConvergence(float conv)
+{
+    convergence = conv;
+    if (convergence > 0.55f)
+        convergence = 0.55f;
+    if (convergence < -0.40f)
+        convergence = -0.40f;
+    eyePair.target.convergence = convergence;
 }
 
 // --- Private - Draw ----------------------------------------------------------
@@ -254,6 +267,7 @@ void EyeRenderer::applyEmotion(Emotion &current, const Emotion &target, float t)
 {
     current.gaze = lerp(current.gaze, target.gaze, t);
     current.pupilSize = lerp(current.pupilSize, target.pupilSize, t);
+    current.convergence = lerp(current.convergence, target.convergence, t);
 
     applyEyeEmotion(current.left, target.left, _cacheL, t);
     applyEyeEmotion(current.right, target.right, _cacheR, t);
@@ -266,11 +280,6 @@ void EyeRenderer::applyEmotion(Emotion &current, const Emotion &target, float t)
         _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
         fillGradient();
     }
-}
-
-uint16_t EyeRenderer::colorToRGB565(const Color &c)
-{
-    return ((c.r & 0xF8) << 8) | ((c.g & 0xFC) << 3) | (c.b >> 3);
 }
 
 void EyeRenderer::applyEyeEmotion(EyeEmotion &current, const EyeEmotion &target, EyeRenderCache &cache, float t)
