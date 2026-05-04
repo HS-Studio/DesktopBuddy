@@ -31,10 +31,6 @@ struct EyeEmotion
     Point offset;
     float rotation;
     Point scale;
-    bool flipX;
-
-    bool hasColorOverride;
-    Color color;
 
     float pupilSize; // 0 = nicht überschreiben
     Point gaze; // 0 = nicht überschreiben
@@ -48,16 +44,20 @@ struct Emotion
     EyeEmotion left;
     EyeEmotion right;
 
-    float convergence;
-    Point gaze;
     float pupilSize;
+
+    bool hasColorOverride;
     Color color;
 };
 
-struct EyePair
+struct EyePairState
 {
     Emotion current;
-    Emotion target;
+ 
+    Point gaze;
+    float convergence;
+    
+    Color color;
 };
 
 struct Edge
@@ -79,4 +79,11 @@ struct EyeRenderCache
     EyeEmotion lastEmo = {};
 
     bool dirty = true;
+};
+
+struct EmotionTransition
+{
+    Emotion target;
+    float duration;   // Sekunden oder Frames
+    float elapsed;    // Fortschritt
 };

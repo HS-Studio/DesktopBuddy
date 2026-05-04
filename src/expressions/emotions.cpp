@@ -7,8 +7,6 @@ const Emotion emo_neutral = {
             .rotation = 0.0f, // radian
             .scale = {0.65f, 0.65f},
 
-            .hasColorOverride = false,
-
             .pupilSize = -1, // -1 = nicht überschreiben
             .top =
                 {
@@ -30,8 +28,6 @@ const Emotion emo_neutral = {
             .offset = {0.0f, -0.1f},
             .rotation = 0.0f, // radian
             .scale = {0.65f, 0.7f},
-
-            .hasColorOverride = false, // linke farbe wird auf beide augen angewendet
 
             .pupilSize = -1,
 
@@ -723,8 +719,6 @@ const Emotion emo_furious{
     .left =
         {
             .scale = {0.65f, 0.70f},
-            .hasColorOverride = true,
-            .color = {255, 0, 0},
             .top =
                 {
                     .openness = 0.25f,
@@ -757,7 +751,9 @@ const Emotion emo_furious{
                     .tilt = 0.0f,
                     .roundness = 0.3f,
                 },
-        }};
+        },
+    .hasColorOverride = true,
+    .color = {0, 255, 0}};
 
 const Emotion emo_scared{
     .left =
@@ -836,7 +832,7 @@ const Emotion emo_awe{
         }};
 
 // all emotions
-const Emotion* emotions[NUM_EMOTIONS] = {
+const Emotion *emotions[NUM_EMOTIONS] = {
     &emo_neutral,
     &emo_blink_high,
     &emo_happy,

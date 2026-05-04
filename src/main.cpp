@@ -71,6 +71,11 @@ void loop()
         }
     }
 
+    if (conver > 0.55f)
+        conver = 0.55f;
+    if (conver < -0.40f)
+        conver = -0.40f;
+
     joy.x = (((float)analogRead(JOY_X_PIN) - 2047.5f) / 2047.5f) * -1;
     joy.y = (((float)analogRead(JOY_Y_PIN) - 2047.5f) / 2047.5f) * -1;
 
@@ -96,15 +101,14 @@ void loop()
 
 /*     if (joy.y > 0.50f)
     {
-        conver += 0.01;
+        conver += 0.05;
         eyes.setConvergence(conver);
     }
     else if (joy.y < -0.50f)
     {
-        conver -= 0.01;
+        conver -= 0.05;
         eyes.setConvergence(conver);
     } */
-
 
     /*     if (millis() - emoMillis >= 5000)
         {
@@ -112,7 +116,7 @@ void loop()
             switchEmotion(eyes);
             emoMillis = millis();
         } */
-
+    eyes.update();
     eyes.drawFace(24, 100);
 
     printFPS();
@@ -121,13 +125,15 @@ void loop()
 void nextEmotion()
 {
     emoIndex = (emoIndex + 1) % NUM_EMOTIONS;
-    eyes.setEmotion(*emotions[emoIndex]);
+    eyes.queueEmotion(*emotions[emoIndex], 0.5f);
+    // eyes.setEmotion(*emotions[emoIndex]);
 }
 
 void previousEmotion()
 {
     emoIndex = (emoIndex - 1 + NUM_EMOTIONS) % NUM_EMOTIONS;
-    eyes.setEmotion(*emotions[emoIndex]);
+    eyes.queueEmotion(*emotions[emoIndex], 0.5f);
+    // eyes.setEmotion(*emotions[emoIndex]);
 }
 
 void printFPS()
@@ -167,11 +173,11 @@ void handleSerialCommand(const String &line)
         if (sscanf(args.c_str(), "%d,%d,%d", &r, &g, &b) == 3)
         {
             eyes.setThemeColor({(uint8_t)r, (uint8_t)g, (uint8_t)b});
-            Serial.printf("✓ setColor(%d, %d, %d)\n", r, g, b);
+            Serial.printf("setColor(%d, %d, %d)\n", r, g, b);
         }
         else
         {
-            Serial.println("✗ Usage: setColor R,G,B  →  z.B. setColor 0,255,0");
+            Serial.println("Usage: setColor R,G,B  →  z.B. setColor 0,255,0");
         }
     }
 
@@ -184,6 +190,6 @@ void handleSerialCommand(const String &line)
 
     else
     {
-        Serial.printf("✗ Unbekannter Befehl: '%s'  (→ 'help')\n", name.c_str());
+        Serial.printf("Unbekannter Befehl: '%s'  (→ 'help')\n", name.c_str());
     }
 }

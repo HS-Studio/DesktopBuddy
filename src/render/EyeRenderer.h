@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <stdint.h>
+#include <deque>
 #include "../expressions/emotions.h"
 #include "../LGFX_SPI_ST7789.h"
 
@@ -17,6 +18,8 @@ public:
     EyeRenderer(LGFX &tft);
 
     void begin();
+    void update(float dt);
+    void update();
     void drawFace(int screen_x, int screen_y);
 
     void lookAt(float x, float y);
@@ -28,22 +31,22 @@ public:
     void setThemeColor(Color color);
     void setConvergence(float conv);
 
+    void queueEmotion(const Emotion& emo, float duration);
+    void clearQueue();
+
     int bezierRes = 12;
 
 private:
     LGFX &_tft;
 
-    LGFX_Sprite _eyeLSprite;
-    LGFX_Sprite _eyeRSprite;
-    LGFX_Sprite _maskSprite;
+    LGFX_Sprite _faceSprite;
     LGFX_Sprite _radialGradient;
 
     // States
-    EyePair eyePair;
+    EyePairState eyePair;
 
     Color default_color;
     Color themeColor;
-    float convergence;
 
     // Cache
     EyeRenderCache _cacheL;
@@ -51,6 +54,9 @@ private:
 
     // Gradient
     void buildGradient(Color *grad, Color target);
+
+    // anim
+    std::deque<EmotionTransition> emotionQueue;
 
     Color pupilGradient[4] =
         {
@@ -63,11 +69,11 @@ private:
     // lgfx::colors_t pupilColors;
 
     // Geometry
-    void buildEyeShape(EyeRenderCache &cache, const EyeEmotion &emo, float convergenceOffsetX);
+    void buildEyeShape(EyeRenderCache &cache, const EyeEmotion &emo);
     void pushArc(EyeRenderCache &cache, float cornerX, float cornerY, float signX, float signY, float rx, float ry, int steps = 6);
     void pushEdge(EyeRenderCache &cache, float x0, float y0, float x1, float y1, float bow, float maxBow, int steps = 12);
     void transformShape(std::vector<Point> &pts, const EyeEmotion &e);
-    void toScreenSpace(std::vector<Point> &pts, const EyeEmotion &e);
+    void toScreenSpace(std::vector<Point> &pts);
 
     // Rasterizer
     void buildEdgeTable(EyeRenderCache &cache);
@@ -75,14 +81,14 @@ private:
 
     // Cache
     // void interpolateEyeState(EyeState &eye, EyeState &target, float speed = 0.1f);
-    void updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo, float convergenceOffsetX);
+    void updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo);
     bool hasChanged(const Point &a, const Point &b, float eps = 0.001f);
 
     // Draw
     void applyEmotion(Emotion &current, const Emotion &target, float t);
     void applyEyeEmotion(EyeEmotion &current, const EyeEmotion &target, EyeRenderCache &cache, float t);
-    void drawEye(LGFX_Sprite &eyeSpr, EyeEmotion &emo, EyeRenderCache &cache, const Point &gaze, float convergenceOffsetX, uint16_t screen_x, uint16_t screen_y);
-    void fillEyeFromGradient(LGFX_Sprite &eyeSpr, EyeRenderCache &cache, int gradOffsetX, int gradOffsetY);
+    void drawEye(LGFX_Sprite &eyeSpr, EyeEmotion &emo, EyeRenderCache &cache, const Point &gaze, float convergenceOffsetX, uint16_t dstX);
+    void fillEyeFromGradient(LGFX_Sprite &spr, EyeRenderCache &cache, int gradOffsetX, int gradOffsetY, int dstOffsetX);
 
     // Color
     bool updateColor(Color &current, Color target, float speed = 0.1f);

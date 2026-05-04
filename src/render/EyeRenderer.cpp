@@ -5,23 +5,18 @@
 
 EyeRenderer::EyeRenderer(LGFX &tft)
     : _tft(tft),
-      _eyeLSprite(&tft),
-      _eyeRSprite(&tft),
-      _maskSprite(&tft),
+      _faceSprite(&tft),
       _radialGradient(&tft)
 {
-    eyePair.current = emo_blink_low;
-    eyePair.target = emo_neutral;
-    //eyePair.target.convergence = 0.4f;
+    // eyePair.current = emo_blink_low;
+    // eyePair.current = emo_neutral;
+    // eyePair.target.convergence = 0.4f;
 }
 
 void EyeRenderer::begin()
 {
-    _eyeLSprite.setColorDepth(16);
-    _eyeLSprite.createSprite(MAX_W, MAX_H);
-
-    _eyeRSprite.setColorDepth(16);
-    _eyeRSprite.createSprite(MAX_W, MAX_H);
+    _faceSprite.setColorDepth(16);
+    _faceSprite.createSprite(MAX_W * 2, MAX_H);
 
     _radialGradient.setColorDepth(16);
     _radialGradient.createSprite(MAX_W, MAX_H);
@@ -34,32 +29,76 @@ void EyeRenderer::begin()
     _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
     fillGradient();
 
+    queueEmotion(emo_blink_low, 0.2f);
+    queueEmotion(emo_neutral, 2.0f);
     setConvergence(0.4f);
 }
 
 // --- Public ------------------------------------------------------------------
 
+void EyeRenderer::update(float dt)
+{
+    if (emotionQueue.empty())
+        return;
+
+    auto &tr = emotionQueue.front();
+
+    tr.elapsed += dt;
+
+    float t = tr.elapsed / tr.duration;
+    if (t > 1.0f)
+        t = 1.0f;
+
+    applyEmotion(eyePair.current, tr.target, t);
+
+    if (tr.elapsed >= tr.duration)
+    {
+        eyePair.current = tr.target;
+        emotionQueue.pop_front();
+    }
+}
+
+void EyeRenderer::update()
+{
+    static uint32_t last = millis();
+    uint32_t now = millis();
+
+    float dt = (now - last) / 1000.0f;
+    last = now;
+
+    if (dt > 0.05f)
+        dt = 0.05f;
+
+    update(dt);
+}
+
 void EyeRenderer::drawFace(int screen_x, int screen_y)
 {
-    // interpolate
-    applyEmotion(eyePair.current, eyePair.target, 0.20f);
+    _faceSprite.fillSprite(TFT_BLACK);
 
-    // draw
-    int16_t x = screen_x + eyePair.current.gaze.x * MAX_X;
-    int16_t y = screen_y + eyePair.current.gaze.y * MAX_Y;
+    int16_t conv = eyePair.convergence * (MAX_W * 0.25f);
 
-    drawEye(_eyeLSprite, eyePair.current.left, _cacheL, eyePair.current.gaze, +eyePair.target.convergence, x, y);
-    drawEye(_eyeRSprite, eyePair.current.right, _cacheR, eyePair.current.gaze, -eyePair.target.convergence, x + MAX_W, y);
+    drawEye(_faceSprite, eyePair.current.left, _cacheL, eyePair.gaze, +conv, 0);
+    drawEye(_faceSprite, eyePair.current.right, _cacheR, eyePair.gaze, -conv, MAX_W);
 
-    // drawEye(_eyeLSprite, eyeL, _cacheL, eyeL.emotion.left, x, y);
-    // drawEye(_eyeRSprite, eyeR, _cacheR, eyeR.emotion.right, x + MAX_W, y);
+    screen_x += eyePair.gaze.x * MAX_X;
+    screen_y += eyePair.gaze.y * MAX_Y;
 
-    // interpolateEyeState(eyePair.current, eyePair.target, 0.20f);
+    if (screen_x < 0)
+        screen_x = 0;
+    if (screen_x > _tft.width())
+        screen_x = _tft.width();
+    if (screen_y < 0)
+        screen_y = 0;
+    if (screen_y > _tft.height())
+    screen_y = _tft.height();
+    
+    _faceSprite.pushSprite(screen_x, screen_y);
 }
 
 void EyeRenderer::lookAt(float x, float y)
 {
-    eyePair.target.gaze = {x, y};
+    eyePair.gaze = {x, y};
 }
 
 void EyeRenderer::becomeAngry()
@@ -79,110 +118,101 @@ void EyeRenderer::idle()
 
 void EyeRenderer::setEmotion(const Emotion &emo)
 {
-    eyePair.target = emo;
+    eyePair.current = emo;
 
-    if (emo.left.hasColorOverride)
-        eyePair.target.color = emo.left.color;
+    if (emo.hasColorOverride)
+        eyePair.current.color = emo.color;
     else
-        eyePair.target.color = themeColor;
-    
-    setConvergence(convergence);
+        eyePair.current.color = themeColor;
 }
 
 void EyeRenderer::setThemeColor(Color color)
 {
     themeColor = color;
-    eyePair.target.color = themeColor;
+    eyePair.current.color = themeColor;
 }
 
 void EyeRenderer::setConvergence(float conv)
 {
-    convergence = conv;
-    if (convergence > 0.55f)
-        convergence = 0.55f;
-    if (convergence < -0.40f)
-        convergence = -0.40f;
-    eyePair.target.convergence = convergence;
+    float c = conv;
+
+    if (c > 0.55f)
+        c = 0.55f;
+    if (c < -0.45f)
+        c = -0.45f;
+    eyePair.convergence = c;
+}
+
+void EyeRenderer::queueEmotion(const Emotion &emo, float duration)
+{
+    emotionQueue.push_back({emo, duration, 0.0f});
+}
+
+void EyeRenderer::clearQueue()
+{
+    emotionQueue.clear();
 }
 
 // --- Private - Draw ----------------------------------------------------------
 
 void EyeRenderer::drawEye(LGFX_Sprite &eyeSpr, EyeEmotion &emo, EyeRenderCache &cache,
                           const Point &gaze, float convergenceOffsetX,
-                          uint16_t screen_x, uint16_t screen_y)
+                          uint16_t dstX)
 {
-
-    // eyeSpr.fillSprite(toLGFX(pupilGradient[3]));
-    // eyeSpr.clear();
-    //_maskSprite.fillSprite(TFT_BLACK);
-
-    updateShapeCache(cache, emo, convergenceOffsetX);
+    updateShapeCache(cache, emo);
 
     int16_t gX = gaze.x * MAX_X;
     int16_t gY = gaze.y * MAX_Y;
 
-    int16_t ox = (emo.offset.x + convergenceOffsetX) * (MAX_W * 0.25f);
+    int16_t ox = emo.offset.x * (MAX_W * 0.25f);
     int16_t oy = emo.offset.y * (MAX_H * 0.25f);
 
-    // fillPolygonET(cache, _maskSprite, TFT_WHITE);
-    //
-    //_radialGradient.pushSprite(&eyeSpr, gX + ox, gY + oy);
-    //_maskSprite.pushSprite(&eyeSpr, 0, 0, TFT_WHITE);
-
-    fillEyeFromGradient(eyeSpr, cache, gX + ox, gY + oy);
-    eyeSpr.pushSprite(screen_x, screen_y);
+    fillEyeFromGradient(eyeSpr, cache, gX + ox, gY + oy, dstX + convergenceOffsetX);
 }
 
-void EyeRenderer::fillEyeFromGradient(LGFX_Sprite &eyeSpr, EyeRenderCache &cache, int gradOffsetX, int gradOffsetY)
+void EyeRenderer::fillEyeFromGradient(
+    LGFX_Sprite &spr,
+    EyeRenderCache &cache,
+    int gradOffsetX,
+    int gradOffsetY,
+    int dstX0)          // Startkolonne im Ziel-Sprite (0 = links, MAX_W = rechts)
 {
     uint16_t *gradBuf = (uint16_t *)_radialGradient.getBuffer();
-    uint16_t *eyeBuf = (uint16_t *)eyeSpr.getBuffer();
-
-    // eyeSpr.fillSprite(toLGFX(pupilGradient[3]));
-    eyeSpr.clear();
+    uint16_t *buf     = (uint16_t *)spr.getBuffer();
+    int sprW = spr.width();   // = MAX_W * 2
 
     int yMin = MAX_H, yMax = 0;
-    for (auto &p : cache.pts)
-    {
+    for (auto &p : cache.pts) {
         int y = (int)p.y;
-        if (y < yMin)
-            yMin = y;
-        if (y > yMax)
-            yMax = y;
+        if (y < yMin) yMin = y;
+        if (y > yMax) yMax = y;
     }
     yMin = std::max(yMin, 0);
     yMax = std::min(yMax, MAX_H - 1);
 
     float xIntersections[16];
-    int xCount = 0;
     int n = cache.pts.size();
 
     for (int y = yMin; y <= yMax; y++)
     {
         float fy = (float)y + 0.5f;
-        xCount = 0;
+        int xCount = 0;
 
-        for (int i = 0; i < n; i++)
-        {
+        for (int i = 0; i < n; i++) {
             const Point &p0 = cache.pts[i];
             const Point &p1 = cache.pts[(i + 1) % n];
-
-            if ((p0.y <= fy && p1.y > fy) || (p1.y <= fy && p0.y > fy))
-            {
+            if ((p0.y <= fy && p1.y > fy) || (p1.y <= fy && p0.y > fy)) {
                 float t = (fy - p0.y) / (p1.y - p0.y);
                 xIntersections[xCount++] = p0.x + t * (p1.x - p0.x);
             }
         }
 
-        if (xCount < 2)
-            continue;
+        if (xCount < 2) continue;
 
-        for (int a = 1; a < xCount; a++)
-        {
+        for (int a = 1; a < xCount; a++) {
             float v = xIntersections[a];
             int b = a - 1;
-            while (b >= 0 && xIntersections[b] > v)
-            {
+            while (b >= 0 && xIntersections[b] > v) {
                 xIntersections[b + 1] = xIntersections[b];
                 b--;
             }
@@ -190,23 +220,24 @@ void EyeRenderer::fillEyeFromGradient(LGFX_Sprite &eyeSpr, EyeRenderCache &cache
         }
 
         int gy = y - gradOffsetY;
+        if (gy < 0 || gy >= MAX_H) continue;  // ganze Scanline außerhalb Gradient
 
         for (int i = 0; i + 1 < xCount; i += 2)
         {
-            int xLeft = std::max((int)xIntersections[i], 0);
+            int xLeft  = std::max((int)xIntersections[i],     0);
             int xRight = std::min((int)xIntersections[i + 1], MAX_W - 1);
-            if (xLeft > xRight)
-                continue;
+            if (xLeft > xRight) continue;
 
             for (int x = xLeft; x <= xRight; x++)
             {
                 int gx = x - gradOffsetX;
-                if (gx < 0 || gx >= MAX_W || gy < 0 || gy >= MAX_H)
-                {
-                    eyeBuf[y * MAX_W + x] = gradBuf[0];
-                    continue;
-                }
-                eyeBuf[y * MAX_W + x] = gradBuf[gy * MAX_W + gx];
+
+                uint16_t c = (gx >= 0 && gx < MAX_W)
+                             ? gradBuf[gy * MAX_W + gx]
+                             : gradBuf[0];
+
+                // Ziel: fester Offset im faceSprite
+                buf[y * sprW + dstX0 + x] = c;
             }
         }
     }
@@ -214,15 +245,11 @@ void EyeRenderer::fillEyeFromGradient(LGFX_Sprite &eyeSpr, EyeRenderCache &cache
 
 // --- Private – Cache ---------------------------------------------------------
 
-void EyeRenderer::updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo, float convergenceOffsetX)
+void EyeRenderer::updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo)
 {
     bool changed =
-        hasChanged(emo.offset, cache.lastEmo.offset) ||
         hasChanged(emo.scale, cache.lastEmo.scale) ||
         fabs(emo.rotation - cache.lastEmo.rotation) > 0.001f ||
-        hasChanged(emo.gaze, cache.lastEmo.gaze) ||
-        fabs(emo.pupilSize - cache.lastEmo.pupilSize) > 0.001f ||
-        fabs(emo.bottom.roundness - cache.lastEmo.bottom.roundness) > 0.001f ||
         fabs(emo.top.openness - cache.lastEmo.top.openness) > 0.001f ||
         fabs(emo.top.curvature - cache.lastEmo.top.curvature) > 0.001f ||
         fabs(emo.top.tilt - cache.lastEmo.top.tilt) > 0.001f ||
@@ -230,8 +257,7 @@ void EyeRenderer::updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo,
         fabs(emo.bottom.openness - cache.lastEmo.bottom.openness) > 0.001f ||
         fabs(emo.bottom.curvature - cache.lastEmo.bottom.curvature) > 0.001f ||
         fabs(emo.bottom.tilt - cache.lastEmo.bottom.tilt) > 0.001f ||
-        fabs(emo.bottom.roundness - cache.lastEmo.bottom.roundness) > 0.001f ||
-        emo.flipX != cache.lastEmo.flipX;
+        fabs(emo.bottom.roundness - cache.lastEmo.bottom.roundness) > 0.001f;
 
     if (!changed)
     {
@@ -240,17 +266,14 @@ void EyeRenderer::updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo,
     }
 
     cache.dirty = true;
-    buildEyeShape(cache, emo, convergenceOffsetX);
+    buildEyeShape(cache, emo);
     transformShape(cache.pts, emo);
-    // buildShape(finalShape, bezierRes, cache.pts);
-
-    toScreenSpace(cache.pts, emo);
+    toScreenSpace(cache.pts);
     buildEdgeTable(cache);
 
     cache.lastEmo.offset = emo.offset;
     cache.lastEmo.scale = emo.scale;
     cache.lastEmo.rotation = emo.rotation;
-    cache.lastEmo.flipX = emo.flipX;
 
     cache.lastEmo = emo;
 }
@@ -265,21 +288,10 @@ void EyeRenderer::buildGradient(Color *grad, Color target)
 
 void EyeRenderer::applyEmotion(Emotion &current, const Emotion &target, float t)
 {
-    current.gaze = lerp(current.gaze, target.gaze, t);
     current.pupilSize = lerp(current.pupilSize, target.pupilSize, t);
-    current.convergence = lerp(current.convergence, target.convergence, t);
 
     applyEyeEmotion(current.left, target.left, _cacheL, t);
     applyEyeEmotion(current.right, target.right, _cacheR, t);
-
-    // color
-    Color targetColor = target.left.hasColorOverride ? target.left.color : themeColor;
-    if (updateColor(current.left.color, targetColor, t))
-    {
-        buildGradient(pupilGradient, current.left.color);
-        _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
-        fillGradient();
-    }
 }
 
 void EyeRenderer::applyEyeEmotion(EyeEmotion &current, const EyeEmotion &target, EyeRenderCache &cache, float t)
@@ -287,7 +299,6 @@ void EyeRenderer::applyEyeEmotion(EyeEmotion &current, const EyeEmotion &target,
     current.scale = lerp(current.scale, target.scale, t);
     current.offset = lerp(current.offset, target.offset, t);
     current.rotation = lerp(current.rotation, target.rotation, t);
-    current.flipX = target.flipX;
 
     current.top.openness = lerp(current.top.openness, target.top.openness, t);
     current.top.curvature = lerp(current.top.curvature, target.top.curvature, t);
@@ -307,14 +318,14 @@ bool EyeRenderer::hasChanged(const Point &a, const Point &b, float eps)
 
 // --- Private – Geometry ------------------------------------------------------
 
-void EyeRenderer::buildEyeShape(EyeRenderCache &cache, const EyeEmotion &emo, float convergenceOffsetX)
+void EyeRenderer::buildEyeShape(EyeRenderCache &cache, const EyeEmotion &emo)
 {
     cache.pts.clear();
 
-    const float cx = 0.5 + (convergenceOffsetX * 0.5); // Mittelpunkt X
-    const float cy = 0.5;                              // Mittelpunkt Y
-    const float W = 1.0;                               // Breite
-    const float H = 1.0;                               // Höhe (bei voller Öffnung)
+    const float cx = 0.5; // Mittelpunkt X
+    const float cy = 0.5; // Mittelpunkt Y
+    const float W = 1.0;  // Breite
+    const float H = 1.0;  // Höhe (bei voller Öffnung)
 
     const float hw = W * 0.5f;
     const float hh = H * 0.5f;
@@ -440,12 +451,10 @@ void EyeRenderer::transformShape(std::vector<Point> &pts, const EyeEmotion &e)
     float cosA = cosf(angle);
     float sinA = sinf(angle);
 
-    float fx = e.flipX ? -1.0f : 1.0f;
-
     // --- Matrix ---
-    float m00 = cosA * sx * fx;
+    float m00 = cosA * sx;
     float m01 = -sinA * sy;
-    float m10 = sinA * sx * fx;
+    float m10 = sinA * sx;
     float m11 = cosA * sy;
 
     // --- Offset (zentriert um 0.5 / 0.5) ---
@@ -467,22 +476,16 @@ void EyeRenderer::transformShape(std::vector<Point> &pts, const EyeEmotion &e)
     }
 }
 
-void EyeRenderer::toScreenSpace(std::vector<Point> &pts, const EyeEmotion &e)
+void EyeRenderer::toScreenSpace(std::vector<Point> &pts)
 {
-    float offsetX = (MAX_W / 2) + e.offset.x * MAX_W * 0.25f;
-    float offsetY = (MAX_H / 2) + e.offset.y * MAX_H * 0.25f;
-
     for (auto &p : pts)
     {
-        p.y = -p.y + 1.0f;
+        // p.y = -p.y + 1.0f;
 
         p.x *= (MAX_W - 1);
         p.y *= (MAX_H - 1);
 
-        p.y = (MAX_H - 1) - p.y; // Y-flip
-
-        p.x += offsetX - (MAX_W / 2);
-        p.y += offsetY - (MAX_H / 2);
+        // p.y = (MAX_H - 1) - p.y; // Y-flip
 
         p.y = max((int)p.y, 0);
         p.y = min((int)p.y, MAX_H);
