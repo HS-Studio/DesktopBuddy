@@ -51,7 +51,7 @@ const Emotion emo_blink_high{
     .left =
         {
             .offset = {0, -0.5f},
-            .scale = {0.80f, 0.65f},
+            .scale = {0.90f, 0.65f},
             .top =
                 {
                     .openness = 0.05f,
@@ -70,7 +70,7 @@ const Emotion emo_blink_high{
     .right =
         {
             .offset = {0, -0.5f},
-            .scale = {0.80f, 0.65f},
+            .scale = {0.90f, 0.65f},
             .top =
                 {
                     .openness = 0.05f,
@@ -171,7 +171,7 @@ const Emotion emo_blink_low{
     .left =
         {
             .offset = {0, 0.5f},
-            .scale = {0.80f, 0.65f},
+            .scale = {0.90f, 0.65f},
             .top =
                 {
                     .openness = 0.05f,
@@ -190,7 +190,7 @@ const Emotion emo_blink_low{
     .right =
         {
             .offset = {0, 0.5f},
-            .scale = {0.80f, 0.65f},
+            .scale = {0.90f, 0.65f},
             .top =
                 {
                     .openness = 0.05f,

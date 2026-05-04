@@ -15,7 +15,7 @@ uint16_t joyYmax;
 
 Point joy = {0, 0};
 
-unsigned long emoMillis = 0;
+unsigned long blinkMillis = 0;
 int emoIndex = 0;
 
 // FPS stuff
@@ -27,6 +27,7 @@ float conver;
 
 bool switching;
 
+long nextBlink;
 // unsigned long fps_currentMillis;
 
 void printFPS();
@@ -48,10 +49,12 @@ void setup()
     tft.begin();
     eyes.begin();
 
-    emoMillis = millis();
-    fpsMillis = emoMillis;
+    blinkMillis = millis();
+    fpsMillis = blinkMillis;
 
     switching = false;
+
+    nextBlink = random(1000, 5000);
 }
 
 void loop()
@@ -99,23 +102,25 @@ void loop()
         switching = false;
     }
 
-/*     if (joy.y > 0.50f)
-    {
-        conver += 0.05;
-        eyes.setConvergence(conver);
-    }
-    else if (joy.y < -0.50f)
-    {
-        conver -= 0.05;
-        eyes.setConvergence(conver);
-    } */
-
-    /*     if (millis() - emoMillis >= 5000)
+    /*     if (joy.y > 0.50f)
         {
-            nextEmotion();
-            switchEmotion(eyes);
-            emoMillis = millis();
+            conver += 0.05;
+            eyes.setConvergence(conver);
+        }
+        else if (joy.y < -0.50f)
+        {
+            conver -= 0.05;
+            eyes.setConvergence(conver);
         } */
+
+    if (millis() - blinkMillis >= nextBlink)
+    {
+        nextBlink = random(1000, 5000);
+        eyes.pushEmotion(*emotions[emoIndex], 0.4);
+        eyes.pushEmotion(emo_blink_low, 0.1f);
+        blinkMillis = millis();
+    }
+
     eyes.update();
     eyes.drawFace(24, 100);
 
@@ -125,14 +130,14 @@ void loop()
 void nextEmotion()
 {
     emoIndex = (emoIndex + 1) % NUM_EMOTIONS;
-    eyes.queueEmotion(*emotions[emoIndex], 0.5f);
+    eyes.queueEmotion(*emotions[emoIndex], 0.4f);
     // eyes.setEmotion(*emotions[emoIndex]);
 }
 
 void previousEmotion()
 {
     emoIndex = (emoIndex - 1 + NUM_EMOTIONS) % NUM_EMOTIONS;
-    eyes.queueEmotion(*emotions[emoIndex], 0.5f);
+    eyes.queueEmotion(*emotions[emoIndex], 0.4f);
     // eyes.setEmotion(*emotions[emoIndex]);
 }
 

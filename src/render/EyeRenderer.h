@@ -31,7 +31,10 @@ public:
     void setThemeColor(Color color);
     void setConvergence(float conv);
 
+    // put Emotions to the end of the queue
     void queueEmotion(const Emotion& emo, float duration);
+    // put Emotions in the front of the queue
+    void pushEmotion(const Emotion &emo, float duration);
     void clearQueue();
 
     int bezierRes = 12;
@@ -88,7 +91,7 @@ private:
     void applyEmotion(Emotion &current, const Emotion &target, float t);
     void applyEyeEmotion(EyeEmotion &current, const EyeEmotion &target, EyeRenderCache &cache, float t);
     void drawEye(LGFX_Sprite &eyeSpr, EyeEmotion &emo, EyeRenderCache &cache, const Point &gaze, float convergenceOffsetX, uint16_t dstX);
-    void fillEyeFromGradient(LGFX_Sprite &spr, EyeRenderCache &cache, int gradOffsetX, int gradOffsetY, int dstOffsetX);
+    void fillEyeFromGradient(LGFX_Sprite &spr, EyeRenderCache &cache, int gradOffsetX, int gradOffsetY, int dstX);
 
     // Color
     bool updateColor(Color &current, Color target, float speed = 0.1f);

@@ -24,7 +24,7 @@ void EyeRenderer::begin()
     _cacheL.dirty = true;
     _cacheR.dirty = true;
 
-    setThemeColor({25, 200, 200});
+    setThemeColor({0, 208, 176});
     buildGradient(pupilGradient, themeColor);
     _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
     fillGradient();
@@ -54,7 +54,8 @@ void EyeRenderer::update(float dt)
     if (tr.elapsed >= tr.duration)
     {
         eyePair.current = tr.target;
-        emotionQueue.pop_front();
+        if (emotionQueue.size() > 1)
+            emotionQueue.pop_front();
     }
 }
 
@@ -91,8 +92,8 @@ void EyeRenderer::drawFace(int screen_x, int screen_y)
     if (screen_y < 0)
         screen_y = 0;
     if (screen_y > _tft.height())
-    screen_y = _tft.height();
-    
+        screen_y = _tft.height();
+
     _faceSprite.pushSprite(screen_x, screen_y);
 }
 
@@ -148,6 +149,11 @@ void EyeRenderer::queueEmotion(const Emotion &emo, float duration)
     emotionQueue.push_back({emo, duration, 0.0f});
 }
 
+void EyeRenderer::pushEmotion(const Emotion &emo, float duration)
+{
+    emotionQueue.push_front({emo, duration, 0.0f});
+}
+
 void EyeRenderer::clearQueue()
 {
     emotionQueue.clear();
@@ -175,17 +181,20 @@ void EyeRenderer::fillEyeFromGradient(
     EyeRenderCache &cache,
     int gradOffsetX,
     int gradOffsetY,
-    int dstX0)          // Startkolonne im Ziel-Sprite (0 = links, MAX_W = rechts)
+    int dstX)
 {
     uint16_t *gradBuf = (uint16_t *)_radialGradient.getBuffer();
-    uint16_t *buf     = (uint16_t *)spr.getBuffer();
-    int sprW = spr.width();   // = MAX_W * 2
+    uint16_t *buf = (uint16_t *)spr.getBuffer();
+    int sprW = spr.width(); // = MAX_W * 2
 
     int yMin = MAX_H, yMax = 0;
-    for (auto &p : cache.pts) {
+    for (auto &p : cache.pts)
+    {
         int y = (int)p.y;
-        if (y < yMin) yMin = y;
-        if (y > yMax) yMax = y;
+        if (y < yMin)
+            yMin = y;
+        if (y > yMax)
+            yMax = y;
     }
     yMin = std::max(yMin, 0);
     yMax = std::min(yMax, MAX_H - 1);
@@ -198,21 +207,26 @@ void EyeRenderer::fillEyeFromGradient(
         float fy = (float)y + 0.5f;
         int xCount = 0;
 
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++)
+        {
             const Point &p0 = cache.pts[i];
             const Point &p1 = cache.pts[(i + 1) % n];
-            if ((p0.y <= fy && p1.y > fy) || (p1.y <= fy && p0.y > fy)) {
+            if ((p0.y <= fy && p1.y > fy) || (p1.y <= fy && p0.y > fy))
+            {
                 float t = (fy - p0.y) / (p1.y - p0.y);
                 xIntersections[xCount++] = p0.x + t * (p1.x - p0.x);
             }
         }
 
-        if (xCount < 2) continue;
+        if (xCount < 2)
+            continue;
 
-        for (int a = 1; a < xCount; a++) {
+        for (int a = 1; a < xCount; a++)
+        {
             float v = xIntersections[a];
             int b = a - 1;
-            while (b >= 0 && xIntersections[b] > v) {
+            while (b >= 0 && xIntersections[b] > v)
+            {
                 xIntersections[b + 1] = xIntersections[b];
                 b--;
             }
@@ -220,24 +234,26 @@ void EyeRenderer::fillEyeFromGradient(
         }
 
         int gy = y - gradOffsetY;
-        if (gy < 0 || gy >= MAX_H) continue;  // ganze Scanline außerhalb Gradient
+        if (gy < 0 || gy >= MAX_H)
+            continue; // ganze Scanline außerhalb Gradient
 
         for (int i = 0; i + 1 < xCount; i += 2)
         {
-            int xLeft  = std::max((int)xIntersections[i],     0);
+            int xLeft = std::max((int)xIntersections[i], 0);
             int xRight = std::min((int)xIntersections[i + 1], MAX_W - 1);
-            if (xLeft > xRight) continue;
+            if (xLeft > xRight)
+                continue;
 
             for (int x = xLeft; x <= xRight; x++)
             {
                 int gx = x - gradOffsetX;
 
                 uint16_t c = (gx >= 0 && gx < MAX_W)
-                             ? gradBuf[gy * MAX_W + gx]
-                             : gradBuf[0];
+                                 ? gradBuf[gy * MAX_W + gx]
+                                 : gradBuf[0];
 
                 // Ziel: fester Offset im faceSprite
-                buf[y * sprW + dstX0 + x] = c;
+                buf[y * sprW + dstX + x] = c;
             }
         }
     }
@@ -458,8 +474,8 @@ void EyeRenderer::transformShape(std::vector<Point> &pts, const EyeEmotion &e)
     float m11 = cosA * sy;
 
     // --- Offset (zentriert um 0.5 / 0.5) ---
-    float tx = 0.5f - (m00 * 0.5f + m01 * 0.5f);
-    float ty = 0.5f - (m10 * 0.5f + m11 * 0.5f);
+    float tx = 0.5f - (m00 * 0.5f + m01 * 0.5f) + (e.offset.x * 0.25);
+    float ty = 0.5f - (m10 * 0.5f + m11 * 0.5f) + (e.offset.y * 0.25);
 
     auto transform = [&](Point &p)
     {
