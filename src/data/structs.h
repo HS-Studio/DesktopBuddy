@@ -12,6 +12,13 @@ struct Point
     float y;
 };
 
+struct Edge
+{
+    int yMax;
+    float x;
+    float invSlope;
+};
+
 struct Color
 {
     uint8_t r;
@@ -19,7 +26,8 @@ struct Color
     uint8_t b;
 };
 
-struct EyelidParams {
+struct EyelidParams
+{
     float openness;
     float curvature;
     float tilt;
@@ -33,38 +41,10 @@ struct EyeEmotion
     Point scale;
 
     float pupilSize; // 0 = nicht überschreiben
-    Point gaze; // 0 = nicht überschreiben
+    Point gaze;      // 0 = nicht überschreiben
 
     EyelidParams top;
     EyelidParams bottom;
-};
-
-struct Emotion
-{
-    EyeEmotion left;
-    EyeEmotion right;
-
-    float pupilSize;
-
-    bool hasColorOverride;
-    Color color;
-};
-
-struct EyePairState
-{
-    Emotion current;
- 
-    Point gaze;
-    float convergence;
-    
-    Color color;
-};
-
-struct Edge
-{
-    int yMax;
-    float x;
-    float invSlope;
 };
 
 struct EyeRenderCache
@@ -81,9 +61,37 @@ struct EyeRenderCache
     bool dirty = true;
 };
 
+struct Emotion
+{
+    EyeEmotion left;
+    EyeEmotion right;
+
+    float pupilSize;
+
+    bool hasColorOverride;
+    Color color;
+};
+
+struct EyePairState
+{
+    Emotion current;
+
+    Point gaze;
+    float convergence;
+
+    Color color;
+};
+
 struct EmotionTransition
 {
     Emotion target;
-    float duration;   // Sekunden oder Frames
-    float elapsed;    // Fortschritt
+    float duration; // Sekunden oder Frames
+    float elapsed;  // Fortschritt
+};
+
+struct BlinkState
+{
+    float t = 0.0f;
+    float duration = 0.15f;
+    bool active = false;
 };

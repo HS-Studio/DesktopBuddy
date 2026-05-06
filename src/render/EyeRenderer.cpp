@@ -8,9 +8,6 @@ EyeRenderer::EyeRenderer(LGFX &tft)
       _faceSprite(&tft),
       _radialGradient(&tft)
 {
-    // eyePair.current = emo_blink_low;
-    // eyePair.current = emo_neutral;
-    // eyePair.target.convergence = 0.4f;
 }
 
 void EyeRenderer::begin()
@@ -24,144 +21,40 @@ void EyeRenderer::begin()
     _cacheL.dirty = true;
     _cacheR.dirty = true;
 
-    setThemeColor({0, 208, 176});
-    buildGradient(pupilGradient, themeColor);
+    buildGradient(pupilGradient, {0, 222, 255});
     _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
     fillGradient();
-
-    queueEmotion(emo_blink_low, 0.2f);
-    queueEmotion(emo_neutral, 2.0f);
-    setConvergence(0.4f);
 }
 
 // --- Public ------------------------------------------------------------------
 
-void EyeRenderer::update(float dt)
-{
-    if (emotionQueue.empty())
-        return;
-
-    auto &tr = emotionQueue.front();
-
-    tr.elapsed += dt;
-
-    float t = tr.elapsed / tr.duration;
-    if (t > 1.0f)
-        t = 1.0f;
-
-    applyEmotion(eyePair.current, tr.target, t);
-
-    if (tr.elapsed >= tr.duration)
-    {
-        eyePair.current = tr.target;
-        if (emotionQueue.size() > 1)
-            emotionQueue.pop_front();
-    }
-}
-
-void EyeRenderer::update()
-{
-    static uint32_t last = millis();
-    uint32_t now = millis();
-
-    float dt = (now - last) / 1000.0f;
-    last = now;
-
-    if (dt > 0.05f)
-        dt = 0.05f;
-
-    update(dt);
-}
-
-void EyeRenderer::drawFace(int screen_x, int screen_y)
+void EyeRenderer::drawFace(const EyePairState &state, int x, int y)
 {
     _faceSprite.fillSprite(TFT_BLACK);
 
-    int16_t conv = eyePair.convergence * (MAX_W * 0.25f);
+    int16_t conv = state.convergence * (MAX_W * 0.25f);
 
-    drawEye(_faceSprite, eyePair.current.left, _cacheL, eyePair.gaze, +conv, 0);
-    drawEye(_faceSprite, eyePair.current.right, _cacheR, eyePair.gaze, -conv, MAX_W);
+    drawEye(_faceSprite, state.current.left, _cacheL, state.gaze, +conv, 0);
+    drawEye(_faceSprite, state.current.right, _cacheR, state.gaze, -conv, MAX_W);
 
-    screen_x += eyePair.gaze.x * MAX_X;
-    screen_y += eyePair.gaze.y * MAX_Y;
+    x += state.gaze.x * MAX_X;
+    y += state.gaze.y * MAX_Y;
 
-    if (screen_x < 0)
-        screen_x = 0;
-    if (screen_x > _tft.width())
-        screen_x = _tft.width();
-    if (screen_y < 0)
-        screen_y = 0;
-    if (screen_y > _tft.height())
-        screen_y = _tft.height();
+    if (x < 0)
+        x = 0;
+    if (x > _tft.width())
+        x = _tft.width();
+    if (y < 0)
+        y = 0;
+    if (y > _tft.height())
+        y = _tft.height();
 
-    _faceSprite.pushSprite(screen_x, screen_y);
-}
-
-void EyeRenderer::lookAt(float x, float y)
-{
-    eyePair.gaze = {x, y};
-}
-
-void EyeRenderer::becomeAngry()
-{
-    setEmotion(emo_angry);
-}
-
-void EyeRenderer::becomeHappy()
-{
-    setEmotion(emo_happy);
-}
-
-void EyeRenderer::idle()
-{
-    setEmotion(emo_neutral);
-}
-
-void EyeRenderer::setEmotion(const Emotion &emo)
-{
-    eyePair.current = emo;
-
-    if (emo.hasColorOverride)
-        eyePair.current.color = emo.color;
-    else
-        eyePair.current.color = themeColor;
-}
-
-void EyeRenderer::setThemeColor(Color color)
-{
-    themeColor = color;
-    eyePair.current.color = themeColor;
-}
-
-void EyeRenderer::setConvergence(float conv)
-{
-    float c = conv;
-
-    if (c > 0.55f)
-        c = 0.55f;
-    if (c < -0.45f)
-        c = -0.45f;
-    eyePair.convergence = c;
-}
-
-void EyeRenderer::queueEmotion(const Emotion &emo, float duration)
-{
-    emotionQueue.push_back({emo, duration, 0.0f});
-}
-
-void EyeRenderer::pushEmotion(const Emotion &emo, float duration)
-{
-    emotionQueue.push_front({emo, duration, 0.0f});
-}
-
-void EyeRenderer::clearQueue()
-{
-    emotionQueue.clear();
+    _faceSprite.pushSprite(x, y);
 }
 
 // --- Private - Draw ----------------------------------------------------------
 
-void EyeRenderer::drawEye(LGFX_Sprite &eyeSpr, EyeEmotion &emo, EyeRenderCache &cache,
+void EyeRenderer::drawEye(LGFX_Sprite &eyeSpr, const EyeEmotion &emo, EyeRenderCache &cache,
                           const Point &gaze, float convergenceOffsetX,
                           uint16_t dstX)
 {
@@ -300,31 +193,6 @@ void EyeRenderer::buildGradient(Color *grad, Color target)
     grad[1] = lerpColor(target, {0, 0, 0}, 0.25f);
     grad[2] = lerpColor(target, {0, 0, 0}, 0.5f);
     grad[3] = lerpColor(target, {0, 0, 0}, 0.5f);
-}
-
-void EyeRenderer::applyEmotion(Emotion &current, const Emotion &target, float t)
-{
-    current.pupilSize = lerp(current.pupilSize, target.pupilSize, t);
-
-    applyEyeEmotion(current.left, target.left, _cacheL, t);
-    applyEyeEmotion(current.right, target.right, _cacheR, t);
-}
-
-void EyeRenderer::applyEyeEmotion(EyeEmotion &current, const EyeEmotion &target, EyeRenderCache &cache, float t)
-{
-    current.scale = lerp(current.scale, target.scale, t);
-    current.offset = lerp(current.offset, target.offset, t);
-    current.rotation = lerp(current.rotation, target.rotation, t);
-
-    current.top.openness = lerp(current.top.openness, target.top.openness, t);
-    current.top.curvature = lerp(current.top.curvature, target.top.curvature, t);
-    current.top.tilt = lerp(current.top.tilt, target.top.tilt, t);
-    current.top.roundness = lerp(current.top.roundness, target.top.roundness, t);
-
-    current.bottom.openness = lerp(current.bottom.openness, target.bottom.openness, t);
-    current.bottom.curvature = lerp(current.bottom.curvature, target.bottom.curvature, t);
-    current.bottom.tilt = lerp(current.bottom.tilt, target.bottom.tilt, t);
-    current.bottom.roundness = lerp(current.bottom.roundness, target.bottom.roundness, t);
 }
 
 bool EyeRenderer::hasChanged(const Point &a, const Point &b, float eps)
@@ -633,43 +501,7 @@ void EyeRenderer::fillGradient()
     }
 }
 
-bool EyeRenderer::updateColor(Color &current, Color target, float speed)
-{
-    bool changed = false;
 
-    auto step = [&](uint8_t &c, uint8_t t)
-    {
-        int diff = t - c;
-        if (abs(diff) < 2)
-        {
-            c = t;
-            return;
-        }
-        int s = diff * speed;
-        if (s == 0)
-            s = (diff > 0) ? 1 : -1;
-        c += s;
-        changed = true;
-    };
-
-    step(current.r, target.r);
-    step(current.g, target.g);
-    step(current.b, target.b);
-
-    return changed;
-}
-
-// --- Private – Lerp ----------------------------------------------------------
-
-float EyeRenderer::lerp(float a, float b, float t)
-{
-    return a + (b - a) * t;
-}
-
-Point EyeRenderer::lerp(const Point &a, const Point &b, float t)
-{
-    return {lerp(a.x, b.x, t), lerp(a.y, b.y, t)};
-}
 
 uint8_t EyeRenderer::lerp(uint8_t a, uint8_t b, float t)
 {

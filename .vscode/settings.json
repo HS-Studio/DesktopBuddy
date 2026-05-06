@@ -1,0 +1,100 @@
+{
+    "myCommandSidebar.categories": [
+        {
+            "id": "ai",
+            "label": "AI",
+            "buttons": [
+                {
+                    "label": "Crea struttura AI",
+                    "title": "Crea struttura AI",
+                    "description": "Crea AI/ e i file base del kit",
+                    "icon": "folder-library",
+                    "command": "workbench.action.terminal.new",
+                    "terminalCommand": "powershell -ExecutionPolicy Bypass -File \"__AI_CREATE_STRUCTURE_SCRIPT__\""
+                }
+            ]
+        },
+        {
+            "id": "workspace",
+            "label": "Workspace",
+            "buttons": []
+        },
+        {
+            "id": "github",
+            "label": "Github",
+            "buttons": [
+                {
+                    "label": "Git Fetch",
+                    "title": "Fetch",
+                    "description": "Aggiorna refs dal remoto",
+                    "icon": "arrow-down",
+                    "command": "workbench.action.terminal.new",
+                    "terminalCommand": "git fetch"
+                },
+                {
+                    "label": "Git Pull",
+                    "title": "Pull",
+                    "description": "Scarica e unisci dal remoto",
+                    "icon": "sync",
+                    "command": "workbench.action.terminal.new",
+                    "terminalCommand": "git pull"
+                },
+                {
+                    "label": "Git Push",
+                    "title": "Push",
+                    "description": "Invia commit al remoto",
+                    "icon": "arrow-up",
+                    "command": "workbench.action.terminal.new",
+                    "terminalCommand": "git push"
+                },
+                {
+                    "label": "Git Remote",
+                    "title": "Remote",
+                    "description": "Mostra i remote configurati",
+                    "icon": "cloud",
+                    "command": "workbench.action.terminal.new",
+                    "terminalCommand": "git remote -v"
+                },
+                {
+                    "label": "Git Branches Remote",
+                    "title": "Branches Remote",
+                    "description": "Elenca branch remoti",
+                    "icon": "source-control",
+                    "command": "workbench.action.terminal.new",
+                    "terminalCommand": "git branch -r"
+                },
+                {
+                    "label": "Git Status",
+                    "title": "Status",
+                    "description": "Mostra stato repository",
+                    "icon": "checklist",
+                    "command": "workbench.action.terminal.new",
+                    "terminalCommand": "git status -sb"
+                }
+            ]
+        },
+        {
+            "id": "build-test",
+            "label": "Build/Test",
+            "buttons": []
+        },
+        {
+            "id": "utils",
+            "label": "Utils",
+            "buttons": [
+                {
+                    "label": "Reload Window",
+                    "title": "Reload Window",
+                    "description": "Ricarica la finestra di VS Code",
+                    "icon": "refresh",
+                    "command": "workbench.action.reloadWindow"
+                }
+            ]
+        },
+        {
+            "id": "ollama-open-chat",
+            "label": "> Ollama: Open Chat",
+            "buttons": []
+        }
+    ]
+}

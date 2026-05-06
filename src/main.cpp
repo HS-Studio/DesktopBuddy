@@ -1,9 +1,11 @@
 // main.cpp
 
 #include "render/EyeRenderer.h"
+#include "animation/EyeAnimator.h"
 
 static LGFX tft;
-static EyeRenderer eyes(tft);
+static EyeRenderer renderer(tft);
+static EyeAnimator animator;
 
 #define JOY_X_PIN 34
 #define JOY_Y_PIN 35
@@ -47,7 +49,7 @@ void setup()
     pinMode(JOY_Y_PIN, INPUT);
 
     tft.begin();
-    eyes.begin();
+    renderer.begin();
 
     blinkMillis = millis();
     fpsMillis = blinkMillis;
@@ -85,7 +87,7 @@ void loop()
     joy.x = constrain(joy.x, -1, 1);
     joy.y = constrain(joy.y, -1, 1);
 
-    eyes.lookAt(joy.y, joy.x);
+    animator.lookAt(joy.y, joy.x);
 
     if (joy.x > 0.50f && !switching)
     {
@@ -105,24 +107,24 @@ void loop()
     /*     if (joy.y > 0.50f)
         {
             conver += 0.05;
-            eyes.setConvergence(conver);
+            renderer.setConvergence(conver);
         }
         else if (joy.y < -0.50f)
         {
             conver -= 0.05;
-            eyes.setConvergence(conver);
+            renderer.setConvergence(conver);
         } */
 
     if (millis() - blinkMillis >= nextBlink)
     {
         nextBlink = random(1000, 5000);
-        eyes.pushEmotion(*emotions[emoIndex], 0.4);
-        eyes.pushEmotion(emo_blink_low, 0.1f);
+        animator.pushEmotion(*emotions[emoIndex], 0.4);
+        animator.pushEmotion(emo_blink_low, 0.1f);
         blinkMillis = millis();
     }
 
-    eyes.update();
-    eyes.drawFace(24, 100);
+    animator.update();
+    renderer.drawFace(animator.state, 24, 100);
 
     printFPS();
 }
@@ -130,15 +132,15 @@ void loop()
 void nextEmotion()
 {
     emoIndex = (emoIndex + 1) % NUM_EMOTIONS;
-    eyes.queueEmotion(*emotions[emoIndex], 0.4f);
-    // eyes.setEmotion(*emotions[emoIndex]);
+    animator.queueEmotion(*emotions[emoIndex], 0.4f);
+    // renderer.setEmotion(*emotions[emoIndex]);
 }
 
 void previousEmotion()
 {
     emoIndex = (emoIndex - 1 + NUM_EMOTIONS) % NUM_EMOTIONS;
-    eyes.queueEmotion(*emotions[emoIndex], 0.4f);
-    // eyes.setEmotion(*emotions[emoIndex]);
+    animator.queueEmotion(*emotions[emoIndex], 0.4f);
+    // renderer.setEmotion(*emotions[emoIndex]);
 }
 
 void printFPS()
@@ -177,7 +179,7 @@ void handleSerialCommand(const String &line)
         int r, g, b;
         if (sscanf(args.c_str(), "%d,%d,%d", &r, &g, &b) == 3)
         {
-            eyes.setThemeColor({(uint8_t)r, (uint8_t)g, (uint8_t)b});
+            animator.setThemeColor({(uint8_t)r, (uint8_t)g, (uint8_t)b});
             Serial.printf("setColor(%d, %d, %d)\n", r, g, b);
         }
         else

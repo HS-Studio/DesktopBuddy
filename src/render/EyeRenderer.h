@@ -18,24 +18,7 @@ public:
     EyeRenderer(LGFX &tft);
 
     void begin();
-    void update(float dt);
-    void update();
-    void drawFace(int screen_x, int screen_y);
-
-    void lookAt(float x, float y);
-    void becomeAngry();
-    void becomeHappy();
-    void idle();
-
-    void setEmotion(const Emotion &emo);
-    void setThemeColor(Color color);
-    void setConvergence(float conv);
-
-    // put Emotions to the end of the queue
-    void queueEmotion(const Emotion& emo, float duration);
-    // put Emotions in the front of the queue
-    void pushEmotion(const Emotion &emo, float duration);
-    void clearQueue();
+    void drawFace(const EyePairState &state, int x, int y);
 
     int bezierRes = 12;
 
@@ -44,12 +27,6 @@ private:
 
     LGFX_Sprite _faceSprite;
     LGFX_Sprite _radialGradient;
-
-    // States
-    EyePairState eyePair;
-
-    Color default_color;
-    Color themeColor;
 
     // Cache
     EyeRenderCache _cacheL;
@@ -88,19 +65,14 @@ private:
     bool hasChanged(const Point &a, const Point &b, float eps = 0.001f);
 
     // Draw
-    void applyEmotion(Emotion &current, const Emotion &target, float t);
-    void applyEyeEmotion(EyeEmotion &current, const EyeEmotion &target, EyeRenderCache &cache, float t);
-    void drawEye(LGFX_Sprite &eyeSpr, EyeEmotion &emo, EyeRenderCache &cache, const Point &gaze, float convergenceOffsetX, uint16_t dstX);
+    void drawEye(LGFX_Sprite &eyeSpr, const EyeEmotion &emo, EyeRenderCache &cache, const Point &gaze, float convergenceOffsetX, uint16_t dstX);
     void fillEyeFromGradient(LGFX_Sprite &spr, EyeRenderCache &cache, int gradOffsetX, int gradOffsetY, int dstX);
 
     // Color
-    bool updateColor(Color &current, Color target, float speed = 0.1f);
     void fillGradient();
     inline lgfx::rgb888_t toLGFX(const Color &c);
 
     // Lerp helpers
-    float lerp(float a, float b, float t);
-    Point lerp(const Point &a, const Point &b, float t);
     uint8_t lerp(uint8_t a, uint8_t b, float t);
     Color lerpColor(const Color &a, const Color &b, float t);
 };
