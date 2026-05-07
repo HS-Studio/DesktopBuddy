@@ -21,6 +21,8 @@ void EyeRenderer::begin()
     _cacheL.dirty = true;
     _cacheR.dirty = true;
 
+    buildRadialLUT();
+
     //buildGradient(pupilGradient, {0, 222, 255});
     //fillGradient();
 }
@@ -147,7 +149,6 @@ void EyeRenderer::fillEyeFromGradient(
                                  ? gradBuf[gy * MAX_W + gx]
                                  : gradBuf[0];
 
-                // Ziel: fester Offset im faceSprite
                 buf[y * sprW + dstX + x] = c;
             }
         }
@@ -389,18 +390,35 @@ inline lgfx::rgb888_t EyeRenderer::toLGFX(const Color &c)
 
 void EyeRenderer::fillGradient()
 {
-    _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
-
     uint16_t *buf = (uint16_t *)_radialGradient.getBuffer();
 
+    Color inner = pupilGradient[3];
+    Color outer = pupilGradient[0];
+
+    for (int i = 0; i < MAX_W * MAX_H; i++)
+    {
+        uint8_t t = radialLUT[i];
+
+        uint8_t r =
+            inner.r + ((outer.r - inner.r) * t >> 8);
+
+        uint8_t g =
+            inner.g + ((outer.g - inner.g) * t >> 8);
+
+        uint8_t b =
+            inner.b + ((outer.b - inner.b) * t >> 8);
+
+        buf[i] = _tft.swap565(r, g, b);
+    }
+}
+
+void EyeRenderer::buildRadialLUT()
+{
     float cx = MAX_W * 0.5f;
     float cy = MAX_H * 0.5f;
 
     float invW = 2.0f / MAX_W;
     float invH = 2.0f / MAX_H;
-
-    Color outer = pupilGradient[3];
-    Color inner = pupilGradient[0];
 
     for (int y = 0; y < MAX_H; y++)
     {
@@ -422,15 +440,7 @@ void EyeRenderer::fillGradient()
             if (t < 0.0f)
                 t = 0.0f;
 
-            Color c;
-
-            c.r = outer.r + (inner.r - outer.r) * t;
-            c.g = outer.g + (inner.g - outer.g) * t;
-            c.b = outer.b + (inner.b - outer.b) * t;
-
-            //_radialGradient.drawPixel(x, y, toLGFX(c));
-
-            buf[row + x] = _tft.swap565(c.r, c.g, c.b);
+            radialLUT[row + x] = (uint8_t)(t * 255.0f);
         }
     }
 }

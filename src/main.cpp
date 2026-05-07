@@ -104,7 +104,7 @@ void loop()
         switchingX = false;
     }
 
-    if (joy.y > 0.50f && !switchingY)
+    if (joy.y > 0.50f)
     {
         switchingY = true;
         Color c;
@@ -113,7 +113,7 @@ void loop()
         c.b = random(0, 255);
 
         animator.setThemeColor(c);
-        Serial.printf("%d %d %d\n", c.r, c.g, c.b);
+        //Serial.printf("%d %d %d\n", c.r, c.g, c.b);
         // conver += 0.05;
         // animator.setConvergence(conver);
     }

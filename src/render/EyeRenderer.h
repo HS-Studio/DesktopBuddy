@@ -33,7 +33,7 @@ private:
     EyeRenderCache _cacheR;
 
     // Gradient
-    void buildGradient(Color *grad, Color target);
+    uint8_t radialLUT[MAX_W * MAX_H];
 
     // anim
     std::deque<EmotionTransition> emotionQueue;
@@ -45,8 +45,6 @@ private:
             {0, 0, 0}, // Rand
             {0, 0, 0},
     };
-
-    // lgfx::colors_t pupilColors;
 
     // Geometry
     void buildEyeShape(EyeRenderCache &cache, const EyeEmotion &emo);
@@ -65,7 +63,9 @@ private:
     void fillEyeFromGradient(LGFX_Sprite &spr, EyeRenderCache &cache, int gradOffsetX, int gradOffsetY, int dstX);
 
     // Color
+    void buildGradient(Color *grad, Color target);
     void fillGradient();
+    void buildRadialLUT();
     inline lgfx::rgb888_t toLGFX(const Color &c);
     void setPupilColor(const Color& c);
 
