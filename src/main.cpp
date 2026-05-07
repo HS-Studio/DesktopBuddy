@@ -27,7 +27,8 @@ uint16_t fps = 0;
 
 float conver;
 
-bool switching;
+bool switchingX;
+bool switchingY;
 
 long nextBlink;
 // unsigned long fps_currentMillis;
@@ -54,9 +55,8 @@ void setup()
     blinkMillis = millis();
     fpsMillis = blinkMillis;
 
-    switching = false;
-
-    nextBlink = random(1000, 5000);
+    switchingX = false;
+    switchingY = false;
 }
 
 void loop()
@@ -89,39 +89,51 @@ void loop()
 
     animator.lookAt(joy.y, joy.x);
 
-    if (joy.x > 0.50f && !switching)
+    if (joy.x > 0.50f && !switchingX)
     {
-        switching = true;
+        switchingX = true;
         nextEmotion();
     }
-    else if (joy.x < -0.50f && !switching)
+    else if (joy.x < -0.50f && !switchingX)
     {
-        switching = true;
+        switchingX = true;
         previousEmotion();
     }
     else if (abs(joy.x) < 0.20f) // Deadzone in der Mitte
     {
-        switching = false;
+        switchingX = false;
     }
 
-    /*     if (joy.y > 0.50f)
-        {
-            conver += 0.05;
-            renderer.setConvergence(conver);
-        }
-        else if (joy.y < -0.50f)
-        {
-            conver -= 0.05;
-            renderer.setConvergence(conver);
-        } */
-
-    if (millis() - blinkMillis >= nextBlink)
+    if (joy.y > 0.50f && !switchingY)
     {
-        nextBlink = random(1000, 5000);
-        animator.pushEmotion(*emotions[emoIndex], 0.4);
-        animator.pushEmotion(emo_blink_low, 0.1f);
-        blinkMillis = millis();
+        switchingY = true;
+        Color c;
+        c.r = random(0, 255);
+        c.g = random(0, 255);
+        c.b = random(0, 255);
+
+        animator.setThemeColor(c);
+        Serial.printf("%d %d %d\n", c.r, c.g, c.b);
+        // conver += 0.05;
+        // animator.setConvergence(conver);
     }
+    else if (joy.y < -0.50f && !switchingY)
+    {
+        switchingY = true;
+        animator.setThemeColor(animator.getDefaultColor());
+        // conver -= 0.05;
+        // animator.setConvergence(conver);
+    }
+    else if (abs(joy.y) < 0.20f)
+        switchingY = false;
+
+    /*     if (millis() - blinkMillis >= nextBlink)
+        {
+            nextBlink = random(1000, 5000);
+            animator.pushEmotion(*emotions[emoIndex], 0.4);
+            animator.pushEmotion(emo_blink_low, 0.1f);
+            blinkMillis = millis();
+        } */
 
     animator.update();
     renderer.drawFace(animator.state, 24, 100);

@@ -21,9 +21,8 @@ void EyeRenderer::begin()
     _cacheL.dirty = true;
     _cacheR.dirty = true;
 
-    buildGradient(pupilGradient, {0, 222, 255});
-    _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
-    fillGradient();
+    //buildGradient(pupilGradient, {0, 222, 255});
+    //fillGradient();
 }
 
 // --- Public ------------------------------------------------------------------
@@ -48,6 +47,9 @@ void EyeRenderer::drawFace(const EyePairState &state, int x, int y)
         y = 0;
     if (y > _tft.height())
         y = _tft.height();
+
+    if (state.colorDirty)
+        setPupilColor(state.color);
 
     _faceSprite.pushSprite(x, y);
 }
@@ -178,7 +180,6 @@ void EyeRenderer::updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo)
     buildEyeShape(cache, emo);
     transformShape(cache.pts, emo);
     toScreenSpace(cache.pts);
-    buildEdgeTable(cache);
 
     cache.lastEmo.offset = emo.offset;
     cache.lastEmo.scale = emo.scale;
@@ -379,84 +380,6 @@ void EyeRenderer::toScreenSpace(std::vector<Point> &pts)
     }
 }
 
-// --- Private – Rasterizer ----------------------------------------------------
-
-void EyeRenderer::buildEdgeTable(EyeRenderCache &cache)
-{
-    cache.ET.clear();
-    cache.ET.resize(MAX_H);
-    cache.minY = MAX_H;
-    cache.maxY = 0;
-
-    int n = cache.pts.size();
-
-    for (int i = 0; i < n; i++)
-    {
-        Point p1 = cache.pts[i];
-        Point p2 = cache.pts[(i + 1) % n];
-
-        // if ((int)p1.y == (int)p2.y)
-        if (abs(p1.y - p2.y) < 0.01f)
-            continue; // horizontal überspringen
-
-        if (p1.y > p2.y)
-            std::swap(p1, p2);
-
-        int yMin = (int)p1.y;
-        int yMax = (int)p2.y;
-
-        yMin = max(yMin, 0);
-        yMax = min(yMax, MAX_H - 1);
-
-        Edge e;
-        e.yMax = yMax;
-        e.x = p1.x;
-        e.invSlope = (p2.x - p1.x) / (p2.y - p1.y);
-
-        cache.ET[yMin].push_back(e);
-        cache.minY = min(cache.minY, yMin);
-        cache.maxY = max(cache.maxY, yMax);
-    }
-}
-
-void EyeRenderer::fillPolygonET(EyeRenderCache &cache, LGFX_Sprite &spr, uint16_t color)
-{
-    cache.AET.clear();
-
-    for (int y = cache.minY; y < cache.maxY; y++)
-    {
-        // hinzufügen
-        for (auto &e : cache.ET[y])
-            cache.AET.push_back(e);
-
-        // entfernen
-        cache.AET.erase(
-            std::remove_if(cache.AET.begin(), cache.AET.end(),
-                           [y](const Edge &e)
-                           { return y >= e.yMax; }),
-            cache.AET.end());
-
-        // sortieren
-        std::sort(cache.AET.begin(), cache.AET.end(),
-                  [](const Edge &a, const Edge &b)
-                  { return a.x < b.x; });
-
-        // zeichnen
-        for (int i = 0; i + 1 < cache.AET.size(); i += 2)
-        {
-            int x0 = (int)cache.AET[i].x;
-            int x1 = (int)cache.AET[i + 1].x;
-
-            if (x1 > x0)
-                spr.drawFastHLine(x0, y, x1 - x0, color);
-        }
-
-        // update
-        for (auto &e : cache.AET)
-            e.x += e.invSlope;
-    }
-}
-
 // --- Private – Color ---------------------------------------------------------
 
 inline lgfx::rgb888_t EyeRenderer::toLGFX(const Color &c)
@@ -466,42 +389,66 @@ inline lgfx::rgb888_t EyeRenderer::toLGFX(const Color &c)
 
 void EyeRenderer::fillGradient()
 {
+    _radialGradient.fillSprite(toLGFX(pupilGradient[3]));
+
+    uint16_t *buf = (uint16_t *)_radialGradient.getBuffer();
+
     float cx = MAX_W * 0.5f;
     float cy = MAX_H * 0.5f;
 
     float invW = 2.0f / MAX_W;
     float invH = 2.0f / MAX_H;
 
-    Color inner = pupilGradient[3];
-    Color outer = pupilGradient[0];
+    Color outer = pupilGradient[3];
+    Color inner = pupilGradient[0];
 
     for (int y = 0; y < MAX_H; y++)
     {
         float dy = (y - cy) * invH;
+
+        int row = y * MAX_W;
 
         for (int x = 0; x < MAX_W; x++)
         {
             float dx = (x - cx) * invW;
 
             float d2 = dx * dx + dy * dy;
+
             if (d2 > 1.0f)
                 d2 = 1.0f;
 
             float t = 1.0f - d2;
-            if (t < 0)
-                t = 0;
+
+            if (t < 0.0f)
+                t = 0.0f;
 
             Color c;
-            c.r = inner.r + (outer.r - inner.r) * t;
-            c.g = inner.g + (outer.g - inner.g) * t;
-            c.b = inner.b + (outer.b - inner.b) * t;
 
-            _radialGradient.drawPixel(x, y, toLGFX(c));
+            c.r = outer.r + (inner.r - outer.r) * t;
+            c.g = outer.g + (inner.g - outer.g) * t;
+            c.b = outer.b + (inner.b - outer.b) * t;
+
+            //_radialGradient.drawPixel(x, y, toLGFX(c));
+
+            buf[row + x] = _tft.swap565(c.r, c.g, c.b);
         }
     }
 }
 
+void EyeRenderer::setPupilColor(const Color& c)
+{
+    buildGradient(pupilGradient, c);
+    fillGradient();
+}
 
+uint16_t EyeRenderer::rgb888_to_rgb565(uint8_t r, uint8_t g, uint8_t b)
+{
+    uint8_t r5 = (r >> 3) & 0x1F;
+    uint8_t g6 = (g >> 2) & 0x3F;
+    uint8_t b5 = (b >> 3) & 0x1F;
+ 
+    return (uint16_t)((r5 << 11) | (g6 << 5) | b5);  
+}
 
 uint8_t EyeRenderer::lerp(uint8_t a, uint8_t b, float t)
 {

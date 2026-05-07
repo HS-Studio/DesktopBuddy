@@ -55,10 +55,6 @@ private:
     void transformShape(std::vector<Point> &pts, const EyeEmotion &e);
     void toScreenSpace(std::vector<Point> &pts);
 
-    // Rasterizer
-    void buildEdgeTable(EyeRenderCache &cache);
-    void fillPolygonET(EyeRenderCache &cache, LGFX_Sprite &spr, uint16_t color);
-
     // Cache
     // void interpolateEyeState(EyeState &eye, EyeState &target, float speed = 0.1f);
     void updateShapeCache(EyeRenderCache &cache, const EyeEmotion &emo);
@@ -71,6 +67,9 @@ private:
     // Color
     void fillGradient();
     inline lgfx::rgb888_t toLGFX(const Color &c);
+    void setPupilColor(const Color& c);
+
+    uint16_t rgb888_to_rgb565(uint8_t r, uint8_t g, uint8_t b);
 
     // Lerp helpers
     uint8_t lerp(uint8_t a, uint8_t b, float t);

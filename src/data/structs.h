@@ -80,6 +80,7 @@ struct EyePairState
     float convergence;
 
     Color color;
+    bool colorDirty;
 };
 
 struct EmotionTransition

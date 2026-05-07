@@ -3,6 +3,10 @@
 EyeAnimator::EyeAnimator()
 {
     setConvergence(0.4f);
+    queueEmotion(emo_blink_low, 1.0f);
+    queueEmotion(emo_neutral, 4.0f);
+    themeColor = default_color;
+    state.colorDirty = true;
 }
 
 void EyeAnimator::update(float dt)
@@ -26,6 +30,8 @@ void EyeAnimator::update(float dt)
         if (emotionQueue.size() > 1)
             emotionQueue.pop_front();
     }
+
+    updateBlink(state.current, blink, dt);
 }
 
 void EyeAnimator::update()
@@ -65,7 +71,7 @@ void EyeAnimator::clearQueue()
 void EyeAnimator::setThemeColor(Color color)
 {
     themeColor = color;
-    state.current.color = themeColor;
+    state.colorDirty = true;
 }
 
 void EyeAnimator::setEmotion(const Emotion &emo)
@@ -73,9 +79,9 @@ void EyeAnimator::setEmotion(const Emotion &emo)
     state.current = emo;
 
     if (emo.hasColorOverride)
-        state.current.color = emo.color;
+        state.color = state.current.color;
     else
-        state.current.color = themeColor;
+        state.color = themeColor;
 }
 
 void EyeAnimator::setConvergence(float conv)
@@ -89,6 +95,16 @@ void EyeAnimator::setConvergence(float conv)
     state.convergence = c;
 }
 
+Color EyeAnimator::getDefaultColor()
+{
+    return default_color;
+}
+
+Color EyeAnimator::getThemeColor()
+{
+    return themeColor;
+}
+
 // --- private ---
 
 void EyeAnimator::applyEmotion(Emotion &current, const Emotion &target, float t)
@@ -97,6 +113,11 @@ void EyeAnimator::applyEmotion(Emotion &current, const Emotion &target, float t)
 
     applyEyeEmotion(current.left, target.left, t);
     applyEyeEmotion(current.right, target.right, t);
+
+    if (target.hasColorOverride)
+        state.colorDirty = updateColor(state.color, target.color, t);
+    else
+        state.colorDirty = updateColor(state.color, themeColor, t);
 }
 
 void EyeAnimator::applyEyeEmotion(EyeEmotion &current, const EyeEmotion &target, float t)
@@ -142,9 +163,59 @@ bool EyeAnimator::updateColor(Color &current, Color target, float speed)
     return changed;
 }
 
+void EyeAnimator::updateBlink(Emotion &eye, BlinkState &b, float dt)
+{
+    if (!b.active)
+    {
+        b.delay -= dt;
+        if (b.delay <= 0.0f)
+        {
+            b.active = true;
+            b.timer = 0.0f;
+
+            // nächster Blink zufällig
+            b.delay = random(2000, 6000) / 1000.0f; // 2–6 Sekunden
+        }
+        return;
+    }
+
+    b.timer += dt;
+
+    if (b.timer >= b.duration)
+    {
+        b.active = false;
+    }
+    applyBlink(eye, b);
+}
+
+void EyeAnimator::applyBlink(Emotion &eye, const BlinkState &b)
+{
+    if (!b.active)
+        return;
+
+    float t = b.timer / b.duration;
+    if (t > 1.0f)
+        t = 1.0f;
+
+    float k = blinkCurve(t);
+
+    // k = 0 → offen
+    // k = 1 → geschlossen
+
+    float closed = 0.0f;
+
+    applyEmotion(eye, emo_blink_low, k);
+}
+
+float EyeAnimator::blinkCurve(float t)
+{
+    return sinf(t * M_PI);
+}
+
 // --- Lerp ----------------------------------------------------------
 
-float EyeAnimator::lerp(float a, float b, float t){
+float EyeAnimator::lerp(float a, float b, float t)
+{
     return a + (b - a) * t;
 }
 

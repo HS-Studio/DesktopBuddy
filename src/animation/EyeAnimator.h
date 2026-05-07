@@ -1,4 +1,5 @@
 #include "../data/structs.h"
+#include "../expressions/emotions.h"
 #include <stdint.h>
 #include <deque>
 
@@ -26,11 +27,23 @@ public:
     void setConvergence(float c);
     void setThemeColor(Color color);
 
-    //void blink(); // beide Augen
+    Color getDefaultColor();
+    Color getThemeColor();
+
+    // void blink(); // beide Augen
 
 private:
+    struct BlinkState
+    {
+        float timer = 0.0f;
+        float duration = 0.12f; // kompletter Blink (~120ms)
+        float delay = 0.0f;     // Zeit bis zum nächsten Blink
+        bool active = false;
+    };
 
-    Color default_color;
+    BlinkState blink;
+
+    Color default_color = {0, 222, 255};
     Color themeColor;
 
     EmotionTransition transition;
@@ -39,13 +52,18 @@ private:
     std::deque<EmotionTransition> emotionQueue;
 
     // intern
-    //void updateTransition(float dt);
-    //void updateBlink(BlinkState &b, float dt);
+    // void updateTransition(float dt);
+    // void updateBlink(BlinkState &b, float dt);
 
     void applyEmotion(Emotion &current, const Emotion &target, float t);
     void applyEyeEmotion(EyeEmotion &current, const EyeEmotion &target, float t);
 
     bool updateColor(Color &current, Color target, float speed);
+
+    float blinkCurve(float t);
+
+    void updateBlink(Emotion &eye, BlinkState &b, float dt);
+    void applyBlink(Emotion &eye, const BlinkState &b);
 
     // Lerp helpers
     float lerp(float a, float b, float t);
